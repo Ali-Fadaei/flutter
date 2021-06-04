@@ -102,6 +102,11 @@ class ModalBarrier extends StatelessWidget {
         // On Android, the back button is used to dismiss a modal. On iOS, some
         // modal barriers are not dismissible in accessibility mode.
         excluding: !semanticsDismissible || !modalBarrierSemanticsDismissible,
+           //ChangeS: added Padding for exclude TitleBar form Blocking
+        child: Padding(
+          padding: EdgeInsets.only(top: 29.5),
+          //ChangeE: and make _ModalBarrierGestureDetector as Child of Paading
+
         child: _ModalBarrierGestureDetector(
           onDismiss: () {
             if (dismissible)
@@ -125,7 +130,7 @@ class ModalBarrier extends StatelessWidget {
             ),
           ),
         ),
-      ),
+      ),),
     );
   }
 }
