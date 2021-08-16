@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
@@ -288,7 +290,7 @@ class _ModalBarrierGestureDetector extends StatelessWidget {
     Key? key,
     required this.child,
     required this.onDismiss,
-  })  : assert(child != null),
+  })   : assert(child != null),
         assert(onDismiss != null),
         super(key: key);
 
