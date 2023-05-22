@@ -356,6 +356,11 @@ List<String> _stringify(List<dynamic> list) => <String>[
   for (final dynamic item in list) item.toString(),
 ];
 
+/// Signature for responding to changes in the [SystemUiOverlayStyle].
+///
+/// used by [SystemChrome.setSystemUiOverlayStyleCallback].
+typedef SystemUiOverlayStyleCallback = void Function(SystemUiOverlayStyle? style);
+
 /// Controls specific aspects of the operating system's graphical interface and
 /// how it interacts with the application.
 abstract final class SystemChrome {
@@ -490,6 +495,22 @@ abstract final class SystemChrome {
     );
   }
 
+  static SystemUiOverlayStyleCallback? _systemUiOverlayStyleCallback;
+
+  /// Sets the function that is called when the current [SystemUiOverlayStyle] is changed.
+  ///
+  /// This Api can be used to listen current [SystemUiOverlayStyle].
+  ///
+  /// For example, set callback for synchronizing the desktop custom title-bar
+  /// with the current [SystemUiOverlayStyle] for better adaptability.
+  ///
+  /// Only one function can be set at a time. Setting a new function
+  /// will override the previous one.
+  // ignore: use_setters_to_change_properties
+  static void setSystemUiOverlayStyleCallback(SystemUiOverlayStyleCallback? callback) {
+    _systemUiOverlayStyleCallback = callback;
+  }
+
   /// Specifies the style to use for the system overlays (e.g. the status bar on
   /// Android or iOS, the system navigation bar on Android) that are visible (if any).
   ///
@@ -563,6 +584,9 @@ abstract final class SystemChrome {
           'SystemChrome.setSystemUIOverlayStyle',
           _pendingStyle!._toMap(),
         );
+        if (_systemUiOverlayStyleCallback != null) {
+          _systemUiOverlayStyleCallback!(_latestStyle);
+        }
         _latestStyle = _pendingStyle;
       }
       _pendingStyle = null;
