@@ -584,10 +584,10 @@ abstract final class SystemChrome {
           'SystemChrome.setSystemUIOverlayStyle',
           _pendingStyle!._toMap(),
         );
+        _latestStyle = _pendingStyle;
         if (_systemUiOverlayStyleCallback != null) {
           _systemUiOverlayStyleCallback!(_latestStyle);
         }
-        _latestStyle = _pendingStyle;
       }
       _pendingStyle = null;
     });
