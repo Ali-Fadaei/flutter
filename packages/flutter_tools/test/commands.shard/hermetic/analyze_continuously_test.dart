@@ -60,7 +60,7 @@ void main() {
     pubspecFile.writeAsStringSync('''
   name: foo_project
   environment:
-    sdk: '>=3.0.0-0 <4.0.0'
+    sdk: '>=3.2.0-0 <4.0.0'
   ''');
 
     final File dartFile = fileSystem.file(fileSystem.path.join(directory.path, 'lib', 'main.dart'));
@@ -189,7 +189,6 @@ void main() {
         FakeCommand(
           command: const <String>[
             'Artifact.engineDartSdkPath/bin/dart',
-            '--disable-dart-dev',
             'Artifact.engineDartSdkPath/bin/snapshots/analysis_server.dart.snapshot',
             '--disable-server-feature-completion',
             '--disable-server-feature-search',
@@ -227,7 +226,6 @@ void main() {
         FakeCommand(
           command: const <String>[
             'Artifact.engineDartSdkPath/bin/dart',
-            '--disable-dart-dev',
             'Artifact.engineDartSdkPath/bin/snapshots/analysis_server.dart.snapshot',
             '--disable-server-feature-completion',
             '--disable-server-feature-search',
@@ -272,7 +270,6 @@ void main() {
         FakeCommand(
           command: const <String>[
             'Artifact.engineDartSdkPath/bin/dart',
-            '--disable-dart-dev',
             'Artifact.engineDartSdkPath/bin/snapshots/analysis_server.dart.snapshot',
             '--disable-server-feature-completion',
             '--disable-server-feature-search',
@@ -327,7 +324,6 @@ void main() {
           FakeCommand(
               command: const <String>[
                 'Artifact.engineDartSdkPath/bin/dart',
-                '--disable-dart-dev',
                 'Artifact.engineDartSdkPath/bin/snapshots/analysis_server.dart.snapshot',
                 '--disable-server-feature-completion',
                 '--disable-server-feature-search',

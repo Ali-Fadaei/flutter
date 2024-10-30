@@ -2,9 +2,9 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Examples of LinearBorder and LinearBorderEdge.
-
 import 'package:flutter/material.dart';
+
+/// Examples for [LinearBorder] and [LinearBorderEdge].
 
 void main() {
   runApp(const ExampleApp());
@@ -18,7 +18,8 @@ class ExampleApp extends StatelessWidget {
     return MaterialApp(
       theme: ThemeData.light(useMaterial3: true),
       home: const Directionality(
-        textDirection: TextDirection.ltr, // Or try rtl.
+        // TRY THIS: Switch to TextDirection.rtl to see how the borders change.
+        textDirection: TextDirection.ltr,
         child: Home(),
       ),
     );
@@ -280,11 +281,11 @@ class _HomeState extends State<Home> {
                   ),
                   TextButton(
                     style: ButtonStyle(
-                      side: MaterialStateProperty.resolveWith<BorderSide?>((Set<MaterialState> states) {
-                        return states.contains(MaterialState.hovered) ? primarySide3 : null;
+                      side: WidgetStateProperty.resolveWith<BorderSide?>((Set<WidgetState> states) {
+                        return states.contains(WidgetState.hovered) ? primarySide3 : null;
                       }),
-                      shape: MaterialStateProperty.resolveWith<OutlinedBorder>((Set<MaterialState> states) {
-                        return states.contains(MaterialState.hovered) ? shape0 : shape1;
+                      shape: WidgetStateProperty.resolveWith<OutlinedBorder>((Set<WidgetState> states) {
+                        return states.contains(WidgetState.hovered) ? shape0 : shape1;
                       }),
                     ),
                     onPressed: () {},

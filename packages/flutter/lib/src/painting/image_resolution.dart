@@ -2,6 +2,9 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+/// @docImport 'package:flutter/widgets.dart';
+library;
+
 import 'dart:async';
 import 'dart:collection';
 
@@ -233,10 +236,10 @@ const double _kLowDprLimit = 2.0;
 class AssetImage extends AssetBundleImageProvider {
   /// Creates an object that fetches an image from an asset bundle.
   ///
-  /// The [assetName] argument must not be null. It should name the main asset
-  /// from the set of images to choose from. The [package] argument must be
-  /// non-null when fetching an asset that is included in package. See the
-  /// documentation for the [AssetImage] class itself for details.
+  /// The [assetName] argument should name the main asset from the set of images
+  /// to choose from. The [package] argument must be non-null when fetching an
+  /// asset that is included in package. See the documentation for the
+  /// [AssetImage] class itself for details.
   const AssetImage(
     this.assetName, {
     this.bundle,
@@ -249,7 +252,7 @@ class AssetImage extends AssetBundleImageProvider {
 
   /// The name used to generate the key to obtain the asset. For local assets
   /// this is [assetName], and for assets from packages the [assetName] is
-  /// prefixed 'packages/<package_name>/'.
+  /// prefixed `packages/<package_name>/`.
   String get keyName => package == null ? assetName : 'packages/$package/$assetName';
 
   /// The bundle from which the image will be obtained.
@@ -327,12 +330,8 @@ class AssetImage extends AssetBundleImageProvider {
   }
 
   AssetMetadata _chooseVariant(String mainAssetKey, ImageConfiguration config, Iterable<AssetMetadata>? candidateVariants) {
-    if (candidateVariants == null) {
+    if (candidateVariants == null || candidateVariants.isEmpty || config.devicePixelRatio == null) {
       return AssetMetadata(key: mainAssetKey, targetDevicePixelRatio: null, main: true);
-    }
-
-    if (config.devicePixelRatio == null) {
-      return candidateVariants.firstWhere((AssetMetadata variant) => variant.main);
     }
 
     final SplayTreeMap<double, AssetMetadata> candidatesByDevicePixelRatio =

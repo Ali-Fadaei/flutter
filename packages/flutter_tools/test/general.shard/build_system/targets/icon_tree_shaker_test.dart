@@ -21,6 +21,8 @@ const String inputPath = '/input/fonts/MaterialIcons-Regular.otf';
 const String outputPath = '/output/fonts/MaterialIcons-Regular.otf';
 const String relativePath = 'fonts/MaterialIcons-Regular.otf';
 
+final RegExp whitespace = RegExp(r'\s+');
+
 void main() {
   late BufferLogger logger;
   late MemoryFileSystem fileSystem;
@@ -35,7 +37,6 @@ void main() {
 
   List<String> getConstFinderArgs(String appDillPath) => <String>[
     dartPath,
-    '--disable-dart-dev',
     constFinderPath,
     '--kernel-file', appDillPath,
     '--class-library-uri', 'package:flutter/src/widgets/icon_data.dart',
@@ -122,6 +123,7 @@ void main() {
       processManager: processManager,
       fileSystem: fileSystem,
       artifacts: artifacts,
+      targetPlatform: TargetPlatform.android,
     );
 
     expect(
@@ -153,6 +155,7 @@ void main() {
       processManager: processManager,
       fileSystem: fileSystem,
       artifacts: artifacts,
+      targetPlatform: TargetPlatform.android,
     );
 
     expect(
@@ -176,6 +179,7 @@ void main() {
       processManager: processManager,
       fileSystem: fileSystem,
       artifacts: artifacts,
+      targetPlatform: TargetPlatform.android,
     );
 
     expect(
@@ -199,6 +203,7 @@ void main() {
       processManager: processManager,
       fileSystem: fileSystem,
       artifacts: artifacts,
+      targetPlatform: TargetPlatform.android,
     );
 
     expect(
@@ -227,6 +232,7 @@ void main() {
       processManager: processManager,
       fileSystem: fileSystem,
       artifacts: artifacts,
+      targetPlatform: TargetPlatform.android,
     );
     final CompleterIOSink stdinSink = CompleterIOSink();
     addConstFinderInvocation(appDill.path, stdout: validConstFinderResult);
@@ -276,6 +282,7 @@ void main() {
       processManager: processManager,
       fileSystem: fileSystem,
       artifacts: artifacts,
+      targetPlatform: TargetPlatform.android,
     );
 
     final CompleterIOSink stdinSink = CompleterIOSink();
@@ -308,6 +315,7 @@ void main() {
       processManager: processManager,
       fileSystem: fileSystem,
       artifacts: artifacts,
+      targetPlatform: TargetPlatform.android,
     );
 
     final CompleterIOSink stdinSink = CompleterIOSink();
@@ -341,6 +349,7 @@ void main() {
         processManager: processManager,
         fileSystem: fileSystem,
         artifacts: artifacts,
+        targetPlatform: platform,
       );
 
       addConstFinderInvocation(appDill.path, stdout: constFinderResultWithInvalid);
@@ -360,6 +369,97 @@ void main() {
       expect(processManager, hasNoRemainingExpectations);
     });
   }
+
+  testWithoutContext('Does not add 0x32 for non-web builds', () async {
+    final Environment environment = createEnvironment(<String, String>{
+      kIconTreeShakerFlag: 'true',
+      kBuildMode: 'release',
+    });
+    final File appDill = environment.buildDir.childFile('app.dill')
+      ..createSync(recursive: true);
+
+    final IconTreeShaker iconTreeShaker = IconTreeShaker(
+      environment,
+      fontManifestContent,
+      logger: logger,
+      processManager: processManager,
+      fileSystem: fileSystem,
+      artifacts: artifacts,
+      targetPlatform: TargetPlatform.android_arm64,
+    );
+
+    addConstFinderInvocation(
+      appDill.path,
+      // Does not contain space char
+      stdout: validConstFinderResult,
+    );
+    final CompleterIOSink stdinSink = CompleterIOSink();
+    resetFontSubsetInvocation(stdinSink: stdinSink);
+    expect(processManager.hasRemainingExpectations, isTrue);
+    final File inputFont = fileSystem.file(inputPath)
+        ..writeAsBytesSync(List<int>.filled(2500, 0));
+    fileSystem.file(outputPath)
+        ..createSync(recursive: true)
+        ..writeAsBytesSync(List<int>.filled(1200, 0));
+
+    final bool result = await iconTreeShaker.subsetFont(
+      input: inputFont,
+      outputPath: outputPath,
+      relativePath: relativePath,
+    );
+
+    expect(result, isTrue);
+    final List<String> codePoints = stdinSink.getAndClear().trim().split(whitespace);
+    expect(codePoints, isNot(contains('optional:32')));
+
+    expect(processManager, hasNoRemainingExpectations);
+  });
+
+  testWithoutContext('Ensures 0x32 is included for web builds', () async {
+    final Environment environment = createEnvironment(<String, String>{
+      kIconTreeShakerFlag: 'true',
+      kBuildMode: 'release',
+    });
+    final File appDill = environment.buildDir.childFile('app.dill')
+      ..createSync(recursive: true);
+
+    final IconTreeShaker iconTreeShaker = IconTreeShaker(
+      environment,
+      fontManifestContent,
+      logger: logger,
+      processManager: processManager,
+      fileSystem: fileSystem,
+      artifacts: artifacts,
+      targetPlatform: TargetPlatform.web_javascript,
+    );
+
+    addConstFinderInvocation(
+      appDill.path,
+      // Does not contain space char
+      stdout: validConstFinderResult,
+    );
+    final CompleterIOSink stdinSink = CompleterIOSink();
+    resetFontSubsetInvocation(stdinSink: stdinSink);
+    expect(processManager.hasRemainingExpectations, isTrue);
+    final File inputFont = fileSystem.file(inputPath)
+        ..writeAsBytesSync(List<int>.filled(2500, 0));
+    fileSystem.file(outputPath)
+        ..createSync(recursive: true)
+        ..writeAsBytesSync(List<int>.filled(1200, 0));
+
+    final bool result = await iconTreeShaker.subsetFont(
+      input: inputFont,
+      outputPath: outputPath,
+      relativePath: relativePath,
+    );
+
+    expect(result, isTrue);
+    final List<String> codePoints = stdinSink.getAndClear().trim().split(whitespace);
+    expect(codePoints, containsAllInOrder(const <String>['59470', 'optional:32']));
+
+    expect(processManager, hasNoRemainingExpectations);
+  });
+
   testWithoutContext('Non-zero font-subset exit code', () async {
     final Environment environment = createEnvironment(<String, String>{
       kIconTreeShakerFlag: 'true',
@@ -376,6 +476,7 @@ void main() {
       processManager: processManager,
       fileSystem: fileSystem,
       artifacts: artifacts,
+      targetPlatform: TargetPlatform.android,
     );
 
     final CompleterIOSink stdinSink = CompleterIOSink();
@@ -408,6 +509,7 @@ void main() {
       processManager: processManager,
       fileSystem: fileSystem,
       artifacts: artifacts,
+      targetPlatform: TargetPlatform.android,
     );
 
     final CompleterIOSink stdinSink = CompleterIOSink(throwOnAdd: true);
@@ -442,6 +544,7 @@ void main() {
       processManager: processManager,
       fileSystem: fileSystem,
       artifacts: artifacts,
+      targetPlatform: TargetPlatform.android,
     );
 
     addConstFinderInvocation(appDill.path, stdout: validConstFinderResult);
@@ -453,6 +556,90 @@ void main() {
         relativePath: relativePath,
       ),
       throwsA(isA<IconTreeShakerException>()),
+    );
+    expect(processManager, hasNoRemainingExpectations);
+  });
+
+  testWithoutContext('Allow system font fallback when fontFamily is null', () async {
+    final Environment environment = createEnvironment(<String, String>{
+      kIconTreeShakerFlag: 'true',
+      kBuildMode: 'release',
+    });
+    final File appDill = environment.buildDir.childFile('app.dill')
+      ..createSync(recursive: true);
+
+    // Valid manifest, just not using it.
+    fontManifestContent = DevFSStringContent(validFontManifestJson);
+
+    final IconTreeShaker iconTreeShaker = IconTreeShaker(
+      environment,
+      fontManifestContent,
+      logger: logger,
+      processManager: processManager,
+      fileSystem: fileSystem,
+      artifacts: artifacts,
+      targetPlatform: TargetPlatform.android,
+    );
+
+    addConstFinderInvocation(appDill.path, stdout: emptyConstFinderResult);
+    // Does not throw
+    await iconTreeShaker.subsetFont(
+      input: fileSystem.file(inputPath),
+      outputPath: outputPath,
+      relativePath: relativePath,
+    );
+
+    expect(
+      logger.traceText,
+      contains(
+        'Expected to find fontFamily for constant IconData with codepoint: '
+        '59470, but found fontFamily: null. This usually means '
+        'you are relying on the system font. Alternatively, font families in '
+        'an IconData class can be provided in the assets section of your '
+        'pubspec.yaml, or you are missing "uses-material-design: true".\n'
+      ),
+    );
+    expect(processManager, hasNoRemainingExpectations);
+  });
+
+  testWithoutContext('Allow system font fallback when fontFamily is null and manifest is empty', () async {
+    final Environment environment = createEnvironment(<String, String>{
+      kIconTreeShakerFlag: 'true',
+      kBuildMode: 'release',
+    });
+    final File appDill = environment.buildDir.childFile('app.dill')
+      ..createSync(recursive: true);
+
+    // Nothing in font manifest
+    fontManifestContent = DevFSStringContent(emptyFontManifestJson);
+
+    final IconTreeShaker iconTreeShaker = IconTreeShaker(
+      environment,
+      fontManifestContent,
+      logger: logger,
+      processManager: processManager,
+      fileSystem: fileSystem,
+      artifacts: artifacts,
+      targetPlatform: TargetPlatform.android,
+    );
+
+    addConstFinderInvocation(appDill.path, stdout: emptyConstFinderResult);
+    // Does not throw
+    await iconTreeShaker.subsetFont(
+      input: fileSystem.file(inputPath),
+      outputPath: outputPath,
+      relativePath: relativePath,
+    );
+
+    expect(
+      logger.traceText,
+      contains(
+        'Expected to find fontFamily for constant IconData with codepoint: '
+        '59470, but found fontFamily: null. This usually means '
+        'you are relying on the system font. Alternatively, font families in '
+        'an IconData class can be provided in the assets section of your '
+        'pubspec.yaml, or you are missing "uses-material-design: true".\n'
+      ),
     );
     expect(processManager, hasNoRemainingExpectations);
   });
@@ -474,6 +661,7 @@ void main() {
       processManager: processManager,
       fileSystem: fileSystem,
       artifacts: artifacts,
+      targetPlatform: TargetPlatform.android,
     );
 
     addConstFinderInvocation(appDill.path, exitCode: -1);
@@ -496,6 +684,20 @@ const String validConstFinderResult = '''
     {
       "codePoint": 59470,
       "fontFamily": "MaterialIcons",
+      "fontPackage": null,
+      "matchTextDirection": false
+    }
+  ],
+  "nonConstantLocations": []
+}
+''';
+
+const String emptyConstFinderResult = '''
+{
+  "constantInstances": [
+    {
+      "codePoint": 59470,
+      "fontFamily": null,
       "fontPackage": null,
       "matchTextDirection": false
     }
@@ -563,3 +765,5 @@ const String invalidFontManifestJson = '''
   ]
 }
 ''';
+
+const String emptyFontManifestJson = '[]';

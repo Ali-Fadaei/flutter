@@ -2,6 +2,13 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+/// @docImport 'dart:ui';
+/// @docImport 'package:flutter/material.dart';
+///
+/// @docImport 'basic.dart';
+/// @docImport 'icon.dart';
+library;
+
 import 'package:flutter/foundation.dart';
 
 /// A description of an icon fulfilled by a font glyph.
@@ -19,6 +26,17 @@ class IconData {
   /// Rarely used directly. Instead, consider using one of the predefined icons
   /// like the [Icons] collection.
   ///
+  /// The [fontFamily] argument is normally required when using custom icons.
+  ///
+  /// e.g. When using a [codePoint] from a `CustomIcons` font
+  /// ```yaml
+  /// fonts:
+  ///   - family: CustomIcons
+  ///     fonts:
+  ///       - asset: assets/fonts/CustomIcons.ttf
+  /// ```
+  /// `IconData` usages should specify `fontFamily: 'CustomIcons'`.
+  ///
   /// The [fontPackage] argument must be non-null when using a font family that
   /// is included in a package. This is used when selecting the font.
   ///
@@ -31,6 +49,7 @@ class IconData {
     this.fontFamily,
     this.fontPackage,
     this.matchTextDirection = false,
+    this.fontFamilyFallback,
   });
 
   /// The Unicode code point at which this icon is stored in the icon font.
@@ -56,6 +75,11 @@ class IconData {
   /// [Directionality] is [TextDirection.rtl].
   final bool matchTextDirection;
 
+  /// The ordered list of font families to fall back on when a glyph cannot be found in a higher priority font family.
+  ///
+  /// For more details, refer to the documentation of [TextStyle]
+  final List<String>? fontFamilyFallback;
+
   @override
   bool operator ==(Object other) {
     if (other.runtimeType != runtimeType) {
@@ -65,11 +89,20 @@ class IconData {
         && other.codePoint == codePoint
         && other.fontFamily == fontFamily
         && other.fontPackage == fontPackage
-        && other.matchTextDirection == matchTextDirection;
+        && other.matchTextDirection == matchTextDirection
+        && listEquals(other.fontFamilyFallback, fontFamilyFallback);
   }
 
   @override
-  int get hashCode => Object.hash(codePoint, fontFamily, fontPackage, matchTextDirection);
+  int get hashCode {
+    return Object.hash(
+      codePoint,
+      fontFamily,
+      fontPackage,
+      matchTextDirection,
+      Object.hashAll(fontFamilyFallback ?? const <String?>[]),
+    );
+  }
 
   @override
   String toString() => 'IconData(U+${codePoint.toRadixString(16).toUpperCase().padLeft(5, '0')})';
@@ -78,8 +111,6 @@ class IconData {
 /// [DiagnosticsProperty] that has an [IconData] as value.
 class IconDataProperty extends DiagnosticsProperty<IconData> {
   /// Create a diagnostics property for [IconData].
-  ///
-  /// The [showName], [style], and [level] arguments must not be null.
   IconDataProperty(
     String super.name,
     super.value, {
@@ -90,8 +121,17 @@ class IconDataProperty extends DiagnosticsProperty<IconData> {
   });
 
   @override
-  Map<String, Object?> toJsonMap(DiagnosticsSerializationDelegate delegate) {
-    final Map<String, Object?> json = super.toJsonMap(delegate);
+  Map<String, Object?> toJsonMap(
+    DiagnosticsSerializationDelegate delegate, {
+    bool fullDetails = true,
+  }) {
+    final Map<String, Object?> json = super.toJsonMap(
+      delegate,
+      fullDetails: fullDetails,
+    );
+    if (!fullDetails) {
+      return json;
+    }
     if (value != null) {
       json['valueProperties'] = <String, Object>{
         'codePoint': value!.codePoint,

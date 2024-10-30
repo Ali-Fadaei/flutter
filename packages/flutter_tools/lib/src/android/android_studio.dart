@@ -28,18 +28,6 @@ import 'android_studio_validator.dart';
 final RegExp _dotHomeStudioVersionMatcher =
     RegExp(r'^\.?(AndroidStudio[^\d]*)([\d.]+)');
 
-// TODO(andrewkolos): this global variable is used in several places to provide
-// a java binary to multiple Java-dependent tools, including the Android SDK
-// and Gradle. If this is null, these tools will implicitly fall back to current
-// JAVA_HOME env variable and then to any java found on PATH.
-//
-// This logic is consistent with that used by flutter doctor to find a valid JDK,
-// but this consistency is fragile--the implementations of this logic
-// exist independently of each other.
-//
-// See https://github.com/flutter/flutter/issues/124252.
-String? get javaPath => globals.androidStudio?.javaPath;
-
 class AndroidStudio {
   /// A [version] value of null represents an unknown version.
   AndroidStudio(
@@ -68,7 +56,7 @@ class AndroidStudio {
 
     Version? version;
     if (versionString != null) {
-      version = Version.parse(versionString);
+      version = _parseVersion(versionString);
     }
 
     String? pathsSelectorValue;
@@ -173,6 +161,9 @@ class AndroidStudio {
   /// The path of the JDK bundled with Android Studio.
   ///
   /// This will be null if the bundled JDK could not be found or run.
+  ///
+  /// If you looking to invoke the java binary or add it to the system
+  /// environment variables, consider using the [Java] class instead.
   String? get javaPath => _javaPath;
 
   bool get isValid => _isValid;
@@ -245,16 +236,7 @@ class AndroidStudio {
   /// Android Studio found at that location is always returned, even if it is
   /// invalid.
   static AndroidStudio? latestValid() {
-    final String? configuredStudioPath = globals.config.getValue('android-studio-dir') as String?;
-    if (configuredStudioPath != null && !globals.fs.directory(configuredStudioPath).existsSync()) {
-      throwToolExit('''
-Could not find the Android Studio installation at the manually configured path "$configuredStudioPath".
-Please verify that the path is correct and update it by running this command: flutter config --android-studio-dir '<path>'
-
-To have flutter search for Android Studio installations automatically, remove
-the configured path by running this command: flutter config --android-studio-dir ''
-''');
-    }
+    final Directory? configuredStudioDir = _configuredDir();
 
     // Find all available Studio installations.
     final List<AndroidStudio> studios = allInstalled();
@@ -264,8 +246,8 @@ the configured path by running this command: flutter config --android-studio-dir
 
     final AndroidStudio? manuallyConfigured = studios
       .where((AndroidStudio studio) => studio.configuredPath != null &&
-        configuredStudioPath != null &&
-        _pathsAreEqual(studio.configuredPath!, configuredStudioPath))
+        configuredStudioDir != null &&
+        _pathsAreEqual(studio.configuredPath!, configuredStudioDir.path))
       .firstOrNull;
 
     if (manuallyConfigured != null) {
@@ -332,16 +314,14 @@ the configured path by running this command: flutter config --android-studio-dir
       ));
     }
 
-    final String? configuredStudioDir = globals.config.getValue('android-studio-dir') as String?;
-    FileSystemEntity? configuredStudioDirAsEntity;
+    Directory? configuredStudioDir = _configuredDir();
     if (configuredStudioDir != null) {
-      configuredStudioDirAsEntity = globals.fs.directory(configuredStudioDir);
-      if (configuredStudioDirAsEntity.basename == 'Contents') {
-        configuredStudioDirAsEntity = configuredStudioDirAsEntity.parent;
+      if (configuredStudioDir.basename == 'Contents') {
+        configuredStudioDir = configuredStudioDir.parent;
       }
       if (!candidatePaths
-          .any((FileSystemEntity e) => _pathsAreEqual(e.path, configuredStudioDirAsEntity!.path))) {
-        candidatePaths.add(configuredStudioDirAsEntity);
+          .any((FileSystemEntity e) => _pathsAreEqual(e.path, configuredStudioDir!.path))) {
+        candidatePaths.add(configuredStudioDir);
       }
     }
 
@@ -366,13 +346,13 @@ the configured path by running this command: flutter config --android-studio-dir
 
     return candidatePaths
       .map<AndroidStudio?>((FileSystemEntity e) {
-        if (configuredStudioDirAsEntity == null) {
+        if (configuredStudioDir == null) {
           return AndroidStudio.fromMacOSBundle(e.path);
         }
 
         return AndroidStudio.fromMacOSBundle(
           e.path,
-          configuredPath: _pathsAreEqual(configuredStudioDirAsEntity.path, e.path) ? configuredStudioDir : null,
+          configuredPath: _pathsAreEqual(configuredStudioDir.path, e.path) ? configuredStudioDir.path : null,
         );
       })
       .whereType<AndroidStudio>()
@@ -404,17 +384,12 @@ the configured path by running this command: flutter config --android-studio-dir
     final String? homeDirPath = globals.fsUtils.homeDirPath;
 
     if (homeDirPath != null && globals.fs.directory(homeDirPath).existsSync()) {
-      final Directory homeDir = globals.fs.directory(homeDirPath);
-
-      final List<Directory> directoriesToSearch = <Directory>[homeDir];
-
       // >=4.1 has new install location at $HOME/.cache/Google
-      final String cacheDirPath =
-          globals.fs.path.join(homeDirPath, '.cache', 'Google');
-
-      if (globals.fs.isDirectorySync(cacheDirPath)) {
-        directoriesToSearch.add(globals.fs.directory(cacheDirPath));
-      }
+      final String cacheDirPath = globals.fs.path.join(homeDirPath, '.cache', 'Google');
+      final List<Directory> directoriesToSearch = <Directory>[
+        globals.fs.directory(homeDirPath),
+        if (globals.fs.isDirectorySync(cacheDirPath)) globals.fs.directory(cacheDirPath),
+      ];
 
       final List<Directory> entities = <Directory>[];
 
@@ -502,6 +477,38 @@ the configured path by running this command: flutter config --android-studio-dir
     return studios;
   }
 
+  /// Gets the Android Studio install directory set by the user, if it is configured.
+  ///
+  /// The returned [Directory], if not null, is guaranteed to have existed during
+  /// this function's execution.
+  static Directory? _configuredDir() {
+    final String? configuredPath = globals.config.getValue('android-studio-dir') as String?;
+    if (configuredPath == null) {
+      return null;
+    }
+    final Directory result = globals.fs.directory(configuredPath);
+
+    bool? configuredStudioPathExists;
+    String? exceptionMessage;
+    try {
+      configuredStudioPathExists = result.existsSync();
+    } on FileSystemException catch (e) {
+      exceptionMessage = e.toString();
+    }
+
+    if (configuredStudioPathExists == false || exceptionMessage != null) {
+      throwToolExit('''
+Could not find the Android Studio installation at the manually configured path "$configuredPath".
+${exceptionMessage == null ? '' : 'Encountered exception: $exceptionMessage\n\n'}
+Please verify that the path is correct and update it by running this command: flutter config --android-studio-dir '<path>'
+To have flutter search for Android Studio installations automatically, remove
+the configured path by running this command: flutter config --android-studio-dir
+''');
+    }
+
+    return result;
+  }
+
   static String? extractStudioPlistValueWithMatcher(String plistValue, RegExp keyMatcher) {
     return keyMatcher.stringMatch(plistValue)?.split('=').last.trim().replaceAll('"', '');
   }
@@ -556,6 +563,35 @@ the configured path by running this command: flutter config --android-studio-dir
         _validationMessages.add('Unable to determine bundled Java version.');
       }
     }
+  }
+
+  static Version? _parseVersion(String text) {
+    // Matches the version string for Preview builds on macOS.
+    // Example match: EAP AI-242.21829.142.2422.12358220
+    // We try to capture "2422" here, which can be translated to a
+    // more human-friendly "24.2.2".
+    final RegExp eapVersionPattern = RegExp(r'EAP\s+[A-Z]{2}-\d+\.\d+\.\d+\.(\d+)\.\d+');
+    final Match? eapVersionMatch = eapVersionPattern.firstMatch(text);
+
+    if (eapVersionMatch == null) {
+      return Version.parse(text);
+    }
+
+    final String? rawVersionMatch = eapVersionMatch.group(1);
+
+    // length of 4 is because that how version is encrypted: first two digits
+    // for year (part of major version), third for minor version, fourth for patch.
+    if (rawVersionMatch == null || rawVersionMatch.length != 4) {
+      return null;
+    }
+
+    final int? major = int.tryParse('20${rawVersionMatch[0]}${rawVersionMatch[1]}');
+    final int? minor = int.tryParse(rawVersionMatch[2]);
+    final int? patch = int.tryParse(rawVersionMatch[3]);
+    if (major == null || minor == null || patch == null) {
+      return null;
+    }
+    return Version(major, minor, patch);
   }
 
   @override

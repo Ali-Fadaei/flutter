@@ -417,6 +417,7 @@ void main() {
       '--disable-service-auth-codes',
       '--trace-skia',
       '--trace-systrace',
+      '--trace-to-file=path/to/trace.binpb',
       '--verbose-system-logs',
       '--null-assertions',
       '--native-null-assertions',
@@ -425,6 +426,8 @@ void main() {
       '--enable-software-rendering',
       '--skia-deterministic-rendering',
       '--enable-embedder-api',
+      '--ci',
+      '--debug-logs-dir=path/to/logs'
     ]), throwsToolExit());
 
     final DebuggingOptions options = await command.createDebuggingOptions(false);
@@ -433,6 +436,7 @@ void main() {
     expect(options.disableServiceAuthCodes, true);
     expect(options.traceSkia, true);
     expect(options.traceSystrace, true);
+    expect(options.traceToFile, 'path/to/trace.binpb');
     expect(options.verboseSystemLogs, true);
     expect(options.nullAssertions, true);
     expect(options.nativeNullAssertions, true);
@@ -440,6 +444,8 @@ void main() {
     expect(options.traceSystrace, true);
     expect(options.enableSoftwareRendering, true);
     expect(options.skiaDeterministicRendering, true);
+    expect(options.usingCISystem, true);
+    expect(options.debugLogsDirectoryPath, 'path/to/logs');
   }, overrides: <Type, Generator>{
     Cache: () => Cache.test(processManager: FakeProcessManager.any()),
     FileSystem: () => MemoryFileSystem.test(),
@@ -535,8 +541,6 @@ void main() {
   });
 }
 
-// Unfortunately Device, despite not being immutable, has an `operator ==`.
-// Until we fix that, we have to also ignore related lints here.
 class ThrowingScreenshotDevice extends ScreenshotDevice {
   @override
   Future<LaunchResult> startApp(
@@ -554,9 +558,6 @@ class ThrowingScreenshotDevice extends ScreenshotDevice {
   }
 }
 
-// Unfortunately Device, despite not being immutable, has an `operator ==`.
-// Until we fix that, we have to also ignore related lints here.
-// ignore: avoid_implementing_value_types
 class ScreenshotDevice extends Fake implements Device {
   final List<File> screenshots = <File>[];
 
@@ -639,7 +640,7 @@ class NeverEndingDriverService extends Fake implements DriverService {
 
   final void Function() callback;
   @override
-  Future<void> reuseApplication(Uri vmServiceUri, Device device, DebuggingOptions debuggingOptions, bool ipv6) async { }
+  Future<void> reuseApplication(Uri vmServiceUri, Device device, DebuggingOptions debuggingOptions) async { }
 
   @override
   Future<int> startTest(
@@ -669,7 +670,7 @@ class FailingFakeFlutterDriverFactory extends Fake implements FlutterDriverFacto
 
 class FailingFakeDriverService extends Fake implements DriverService {
   @override
-  Future<void> reuseApplication(Uri vmServiceUri, Device device, DebuggingOptions debuggingOptions, bool ipv6) async { }
+  Future<void> reuseApplication(Uri vmServiceUri, Device device, DebuggingOptions debuggingOptions) async { }
 
   @override
   Future<int> startTest(
@@ -695,9 +696,6 @@ class FakeProcessSignal extends Fake implements io.ProcessSignal {
   Stream<io.ProcessSignal> watch() => controller.stream;
 }
 
-// Unfortunately Device, despite not being immutable, has an `operator ==`.
-// Until we fix that, we have to also ignore related lints here.
-// ignore: avoid_implementing_value_types
 class FakeIosDevice extends Fake implements IOSDevice {
   @override
   DeviceConnectionInterface connectionInterface = DeviceConnectionInterface.attached;

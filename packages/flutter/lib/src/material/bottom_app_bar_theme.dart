@@ -2,6 +2,10 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+/// @docImport 'bottom_app_bar.dart';
+/// @docImport 'material.dart';
+library;
+
 import 'dart:ui' show lerpDouble;
 
 import 'package:flutter/foundation.dart';
@@ -39,8 +43,6 @@ class BottomAppBarTheme with Diagnosticable {
   });
 
   /// Overrides the default value for [BottomAppBar.color].
-  ///
-  /// If null, [BottomAppBar] uses [ThemeData.bottomAppBarColor].
   final Color? color;
 
   /// Overrides the default value for [BottomAppBar.elevation].
@@ -93,8 +95,6 @@ class BottomAppBarTheme with Diagnosticable {
   }
 
   /// Linearly interpolate between two BAB themes.
-  ///
-  /// The argument `t` must not be null.
   ///
   /// {@macro dart.ui.shadow.lerp}
   static BottomAppBarTheme lerp(BottomAppBarTheme? a, BottomAppBarTheme? b, double t) {

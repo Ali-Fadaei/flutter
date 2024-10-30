@@ -4,7 +4,6 @@
 
 import 'dart:async';
 
-import 'package:collection/collection.dart';
 import 'package:dds/dap.dart';
 import 'package:flutter_tools/src/base/file_system.dart';
 import 'package:flutter_tools/src/base/platform.dart';
@@ -18,6 +17,7 @@ class MockFlutterDebugAdapter extends FlutterDebugAdapter {
     required FileSystem fileSystem,
     required Platform platform,
     bool simulateAppStarted = true,
+    bool simulateAppStopError = false,
     bool supportsRestart = true,
     FutureOr<void> Function(MockFlutterDebugAdapter adapter)? preAppStart,
   }) {
@@ -32,6 +32,7 @@ class MockFlutterDebugAdapter extends FlutterDebugAdapter {
       fileSystem: fileSystem,
       platform: platform,
       simulateAppStarted: simulateAppStarted,
+      simulateAppStopError: simulateAppStopError,
       supportsRestart: supportsRestart,
       preAppStart: preAppStart,
     );
@@ -43,6 +44,7 @@ class MockFlutterDebugAdapter extends FlutterDebugAdapter {
     required super.fileSystem,
     required super.platform,
     this.simulateAppStarted = true,
+    this.simulateAppStopError = false,
     this.supportsRestart = true,
     this.preAppStart,
   }) {
@@ -54,6 +56,7 @@ class MockFlutterDebugAdapter extends FlutterDebugAdapter {
   int _seq = 1;
   final ByteStreamServerChannel clientChannel;
   final bool simulateAppStarted;
+  final bool simulateAppStopError;
   final bool supportsRestart;
   final FutureOr<void> Function(MockFlutterDebugAdapter adapter)? preAppStart;
 
@@ -86,7 +89,7 @@ class MockFlutterDebugAdapter extends FlutterDebugAdapter {
   /// by the debug adapter.
   List<String> get dapToFlutterRequests => dapToFlutterMessages
       .map((Map<String, Object?> message) => message['method'] as String?)
-      .whereNotNull()
+      .nonNulls
       .toList();
 
   /// A handler for the 'app.exposeUrl' reverse-request.
@@ -104,9 +107,22 @@ class MockFlutterDebugAdapter extends FlutterDebugAdapter {
 
     await preAppStart?.call(this);
 
+    void sendLaunchProgress({required bool finished, String? message}) {
+      assert(finished == (message == null));
+      simulateStdoutMessage(<String, Object?>{
+        'event': 'app.progress',
+        'params': <String, Object?>{
+          'id': 'launch',
+          'message': message,
+          'finished': finished,
+        }
+      });
+    }
+
     // Simulate the app starting by triggering handling of events that Flutter
     // would usually write to stdout.
     if (simulateAppStarted) {
+      sendLaunchProgress(message: 'Step 1…', finished: false);
       simulateStdoutMessage(<String, Object?>{
         'event': 'app.start',
         'params': <String, Object?>{
@@ -116,8 +132,19 @@ class MockFlutterDebugAdapter extends FlutterDebugAdapter {
           'mode': 'debug',
         }
       });
+      sendLaunchProgress(message: 'Step 2…', finished: false);
+      sendLaunchProgress(finished: true);
       simulateStdoutMessage(<String, Object?>{
         'event': 'app.started',
+      });
+    }
+    if (simulateAppStopError) {
+      simulateStdoutMessage(<String, Object?>{
+        'event': 'app.stop',
+        'params': <String, Object?>{
+          'appId': 'TEST',
+          'error': 'App stopped due to an error',
+        }
       });
     }
   }
@@ -176,7 +203,7 @@ class MockFlutterDebugAdapter extends FlutterDebugAdapter {
   }
 
   @override
-  void sendFlutterMessage(Map<String, Object?> message) {
+  Future<void> sendFlutterMessage(Map<String, Object?> message) async {
     dapToFlutterMessages.add(message);
     // Don't call super because it will try to write to the process that we
     // didn't actually spawn.

@@ -5,6 +5,7 @@
 import 'dart:async';
 import 'dart:io' as io show IOSink, ProcessSignal, Stdout, StdoutException;
 
+import 'package:dds/dds_launcher.dart';
 import 'package:flutter_tools/src/android/android_sdk.dart';
 import 'package:flutter_tools/src/android/android_studio.dart';
 import 'package:flutter_tools/src/android/java.dart';
@@ -13,11 +14,14 @@ import 'package:flutter_tools/src/base/file_system.dart';
 import 'package:flutter_tools/src/base/io.dart';
 import 'package:flutter_tools/src/base/logger.dart';
 import 'package:flutter_tools/src/base/os.dart';
+import 'package:flutter_tools/src/base/time.dart';
+import 'package:flutter_tools/src/base/version.dart';
 import 'package:flutter_tools/src/cache.dart';
 import 'package:flutter_tools/src/convert.dart';
 import 'package:flutter_tools/src/features.dart';
 import 'package:flutter_tools/src/ios/plist_parser.dart';
 import 'package:flutter_tools/src/project.dart';
+import 'package:flutter_tools/src/resident_runner.dart';
 import 'package:flutter_tools/src/version.dart';
 import 'package:test/fake.dart';
 
@@ -192,6 +196,15 @@ class MemoryStdout extends MemoryIOSink implements io.Stdout {
   bool _hasTerminal = true;
 
   @override
+  // ignore: override_on_non_overriding_member
+  String get lineTerminator => '\n';
+  @override
+  // ignore: override_on_non_overriding_member
+  set lineTerminator(String value) {
+    throw UnimplementedError('Setting the line terminator is not supported');
+  }
+
+  @override
   io.IOSink get nonBlocking => this;
 
   @override
@@ -242,7 +255,7 @@ class FakeStdio extends Stdio {
   }
 
   @override
-  bool hasTerminal = true;
+  bool hasTerminal = false;
 
   List<String> get writtenToStdout => _stdout.writes.map<String>(_stdout.encoding.decode).toList();
   List<String> get writtenToStderr => _stderr.writes.map<String>(_stderr.encoding.decode).toList();
@@ -251,11 +264,26 @@ class FakeStdio extends Stdio {
 class FakeStdin extends Fake implements Stdin {
   final StreamController<List<int>> controller = StreamController<List<int>>();
 
+  void Function(bool mode)? echoModeCallback;
+
+  bool _echoMode = true;
+
   @override
-  bool echoMode = true;
+  bool get echoMode => _echoMode;
+
+  @override
+  set echoMode(bool mode) {
+    _echoMode = mode;
+    if (echoModeCallback != null) {
+      echoModeCallback!(mode);
+    }
+  }
 
   @override
   bool lineMode = true;
+
+  @override
+  bool hasTerminal = false;
 
   @override
   Stream<S> transform<S>(StreamTransformer<List<int>, S> transformer) {
@@ -290,6 +318,11 @@ class FakePlistParser implements PlistParser {
 
   @override
   String? plistXmlContent(String plistFilePath) => throw UnimplementedError();
+
+  @override
+  String? plistJsonContent(String filePath, {bool sorted = false}) {
+    throw UnimplementedError();
+  }
 
   @override
   Map<String, Object> parseFile(String plistFilePath) {
@@ -336,12 +369,25 @@ class FakeFlutterVersion implements FlutterVersion {
     this.frameworkAge = '0 hours ago',
     this.frameworkCommitDate = '12/01/01',
     this.gitTagVersion = const GitTagVersion.unknown(),
+    this.flutterRoot = '/path/to/flutter',
+    this.nextFlutterVersion,
   });
 
   final String branch;
 
   bool get didFetchTagsAndUpdate => _didFetchTagsAndUpdate;
   bool _didFetchTagsAndUpdate = false;
+
+  /// Will be returned by [fetchTagsAndGetVersion] if not null.
+  final FlutterVersion? nextFlutterVersion;
+
+  @override
+    FlutterVersion fetchTagsAndGetVersion({
+      SystemClock clock = const SystemClock(),
+    }) {
+    _didFetchTagsAndUpdate = true;
+    return nextFlutterVersion ?? this;
+  }
 
   bool get didCheckFlutterVersionFreshness => _didCheckFlutterVersionFreshness;
   bool _didCheckFlutterVersionFreshness = false;
@@ -353,6 +399,9 @@ class FakeFlutterVersion implements FlutterVersion {
     }
     return kUserBranch;
   }
+
+  @override
+  final String flutterRoot;
 
   @override
   final String devToolsVersion;
@@ -385,15 +434,10 @@ class FakeFlutterVersion implements FlutterVersion {
   final String frameworkCommitDate;
 
   @override
-  String get frameworkDate => frameworkCommitDate;
-
-  @override
   final GitTagVersion gitTagVersion;
 
   @override
-  void fetchTagsAndUpdate() {
-    _didFetchTagsAndUpdate = true;
-  }
+  FileSystem get fs => throw UnimplementedError('FakeFlutterVersion.fs is not implemented');
 
   @override
   Future<void> checkFlutterVersionFreshness() async {
@@ -413,7 +457,7 @@ class FakeFlutterVersion implements FlutterVersion {
 
   @override
   String getVersionString({bool redactUnknownBranches = false}) {
-    return 'v0.0.0';
+    return '${getBranchName(redactUnknownBranches: redactUnknownBranches)}/$frameworkRevision';
   }
 
   @override
@@ -430,12 +474,14 @@ class TestFeatureFlags implements FeatureFlags {
     this.isMacOSEnabled = false,
     this.isWebEnabled = false,
     this.isWindowsEnabled = false,
-    this.isSingleWidgetReloadEnabled = false,
     this.isAndroidEnabled = true,
     this.isIOSEnabled = true,
     this.isFuchsiaEnabled = false,
     this.areCustomDevicesEnabled = false,
-    this.isFlutterWebWasmEnabled = false,
+    this.isCliAnimationEnabled = true,
+    this.isNativeAssetsEnabled = false,
+    this.isPreviewDeviceEnabled = false,
+    this.isSwiftPackageManagerEnabled = false,
   });
 
   @override
@@ -451,9 +497,6 @@ class TestFeatureFlags implements FeatureFlags {
   final bool isWindowsEnabled;
 
   @override
-  final bool isSingleWidgetReloadEnabled;
-
-  @override
   final bool isAndroidEnabled;
 
   @override
@@ -466,31 +509,32 @@ class TestFeatureFlags implements FeatureFlags {
   final bool areCustomDevicesEnabled;
 
   @override
-  final bool isFlutterWebWasmEnabled;
+  final bool isCliAnimationEnabled;
+
+  @override
+  final bool isNativeAssetsEnabled;
+
+  @override
+  final bool isPreviewDeviceEnabled;
+
+  @override
+  final bool isSwiftPackageManagerEnabled;
 
   @override
   bool isEnabled(Feature feature) {
-    switch (feature) {
-      case flutterWebFeature:
-        return isWebEnabled;
-      case flutterLinuxDesktopFeature:
-        return isLinuxEnabled;
-      case flutterMacOSDesktopFeature:
-        return isMacOSEnabled;
-      case flutterWindowsDesktopFeature:
-        return isWindowsEnabled;
-      case singleWidgetReload:
-        return isSingleWidgetReloadEnabled;
-      case flutterAndroidFeature:
-        return isAndroidEnabled;
-      case flutterIOSFeature:
-        return isIOSEnabled;
-      case flutterFuchsiaFeature:
-        return isFuchsiaEnabled;
-      case flutterCustomDevicesFeature:
-        return areCustomDevicesEnabled;
-    }
-    return false;
+    return switch (feature) {
+      flutterWebFeature => isWebEnabled,
+      flutterLinuxDesktopFeature => isLinuxEnabled,
+      flutterMacOSDesktopFeature => isMacOSEnabled,
+      flutterWindowsDesktopFeature => isWindowsEnabled,
+      flutterAndroidFeature => isAndroidEnabled,
+      flutterIOSFeature => isIOSEnabled,
+      flutterFuchsiaFeature => isFuchsiaEnabled,
+      flutterCustomDevicesFeature => areCustomDevicesEnabled,
+      cliAnimation => isCliAnimationEnabled,
+      nativeAssets => isNativeAssetsEnabled,
+      _ => false,
+    };
   }
 }
 
@@ -515,6 +559,9 @@ class FakeOperatingSystemUtils extends Fake implements OperatingSystemUtils {
 
   @override
   List<File> whichAll(String execName) => <File>[];
+
+  @override
+  int? getDirectorySize(Directory directory) => 10000000; // 10 MB / 9.5 MiB
 
   @override
   void unzip(File file, Directory targetDirectory) { }
@@ -619,15 +666,12 @@ class FakeJava extends Fake implements Java {
   FakeJava({
     this.javaHome = '/android-studio/jbr',
     String binary = '/android-studio/jbr/bin/java',
-    JavaVersion? version,
+    Version? version,
     bool canRun = true,
   }): binaryPath = binary,
-      version = version ?? JavaVersion(
-       longText: 'openjdk 19.0.2 2023-01-17',
-       number: '19.0.2',
-      ),
+      version = version ?? const Version.withText(19, 0, 2, 'openjdk 19.0.2 2023-01-17'),
       _environment = <String, String>{
-        if (javaHome != null) 'JAVA_HOME': javaHome,
+        if (javaHome != null) Java.javaHomeEnvironmentVariable: javaHome,
         'PATH': '/android-studio/jbr/bin',
       },
       _canRun = canRun;
@@ -645,10 +689,97 @@ class FakeJava extends Fake implements Java {
   Map<String, String> get environment => _environment;
 
   @override
-  JavaVersion? version;
+  Version? version;
 
   @override
   bool canRun() {
     return _canRun;
+  }
+}
+
+class FakeDartDevelopmentServiceLauncher extends Fake
+    implements DartDevelopmentServiceLauncher {
+  FakeDartDevelopmentServiceLauncher({
+    required this.uri,
+    this.devToolsUri,
+    this.dtdUri,
+  });
+
+  @override
+  final Uri uri;
+
+  @override
+  final Uri? devToolsUri;
+
+  @override
+  final Uri? dtdUri;
+
+  @override
+  Future<void> get done => _completer.future;
+
+  @override
+  Future<void> shutdown() async => _completer.complete();
+
+  final Completer<void> _completer = Completer<void>();
+}
+
+class FakeDevtoolsLauncher extends Fake implements DevtoolsLauncher {
+  FakeDevtoolsLauncher({DevToolsServerAddress? serverAddress})
+      : _serverAddress = serverAddress;
+
+  @override
+  Future<void> get processStart => _processStarted.future;
+
+  final Completer<void> _processStarted = Completer<void>();
+
+  @override
+  Future<void> get ready => readyCompleter.future;
+
+  Completer<void> readyCompleter = Completer<void>()..complete();
+
+  @override
+  DevToolsServerAddress? activeDevToolsServer;
+
+  @override
+  Uri? devToolsUrl;
+
+  @override
+  Uri? dtdUri;
+
+  @override
+  bool printDtdUri = false;
+
+  final DevToolsServerAddress? _serverAddress;
+
+  @override
+  Future<DevToolsServerAddress?> serve() async => _serverAddress;
+
+  @override
+  Future<void> launch(Uri vmServiceUri, {List<String>? additionalArguments}) {
+    _processStarted.complete();
+    return Completer<void>().future;
+  }
+
+  bool closed = false;
+
+  @override
+  Future<void> close() async {
+    closed = true;
+  }
+}
+
+/// A fake [Logger] that throws the [Invocation] for any method call.
+class FakeLogger implements Logger {
+  @override
+  dynamic noSuchMethod(Invocation invocation) => throw invocation; // ignore: only_throw_errors
+}
+
+class ClosedStdinController extends Fake implements StreamSink<List<int>> {
+  @override
+  Future<Object?> addStream(Stream<List<int>> stream) async => throw const SocketException('Bad pipe');
+
+  @override
+  Future<Object?> close() async {
+    return null;
   }
 }

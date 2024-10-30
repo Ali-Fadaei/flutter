@@ -22,6 +22,7 @@ void main() {
   group('RawImage', () {
     testWidgets('properties', (WidgetTester tester) async {
       final ui.Image image1 = (await tester.runAsync<ui.Image>(() => createTestImage()))!;
+      addTearDown(image1.dispose);
 
       await tester.pumpWidget(
         Directionality(
@@ -46,10 +47,11 @@ void main() {
       expect(renderObject.centerSlice, null);
       expect(renderObject.matchTextDirection, false);
       expect(renderObject.invertColors, false);
-      expect(renderObject.filterQuality, FilterQuality.low);
+      expect(renderObject.filterQuality, FilterQuality.medium);
       expect(renderObject.isAntiAlias, false);
 
       final ui.Image image2 = (await tester.runAsync<ui.Image>(() => createTestImage(width: 2, height: 2)))!;
+      addTearDown(image2.dispose);
       const String debugImageLabel = 'debugImageLabel';
       const double width = 1;
       const double height = 1;
@@ -463,6 +465,7 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
+          theme: ThemeData(useMaterial3: false),
           home: Scaffold(
             body: Row(
               crossAxisAlignment: CrossAxisAlignment.baseline,
@@ -470,11 +473,11 @@ void main() {
               children: <Widget>[
                 Text('big text',
                   key: key1,
-                  style: const TextStyle(fontFamily: 'FlutterTest', fontSize: fontSize1),
+                  style: const TextStyle(fontFamily: 'FlutterTest', fontSize: fontSize1, height: 1.0),
                 ),
                 Text('one\ntwo\nthree\nfour\nfive\nsix\nseven',
                   key: key2,
-                  style: const TextStyle(fontFamily: 'FlutterTest', fontSize: fontSize2),
+                  style: const TextStyle(fontFamily: 'FlutterTest', fontSize: fontSize2, height: 1.0),
                 ),
               ],
             ),
@@ -517,6 +520,7 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
+          theme: ThemeData(useMaterial3: false),
           home: Scaffold(
             body: Row(
               crossAxisAlignment: CrossAxisAlignment.baseline,
@@ -524,11 +528,11 @@ void main() {
               children: <Widget>[
                 Text('big text',
                   key: key1,
-                  style: const TextStyle(fontFamily: 'FlutterTest', fontSize: fontSize1),
+                  style: const TextStyle(fontFamily: 'FlutterTest', fontSize: fontSize1, height: 1.0),
                 ),
                 Text('one\ntwo\nthree\nfour\nfive\nsix\nseven',
                   key: key2,
-                  style: const TextStyle(fontFamily: 'FlutterTest', fontSize: fontSize2),
+                  style: const TextStyle(fontFamily: 'FlutterTest', fontSize: fontSize2, height: 1.0),
                 ),
                 const FlutterLogo(size: 250),
               ],
@@ -711,7 +715,7 @@ void main() {
       renderColoredBox.paint(mockContext, Offset.zero);
 
       expect(mockCanvas.rects.single, const Rect.fromLTWH(0, 0, 800, 600));
-      expect(mockCanvas.paints.single.color, colorToPaint);
+      expect(mockCanvas.paints.single.color, isSameColorAs(colorToPaint));
       expect(mockContext.children, isEmpty);
       expect(mockContext.offsets, isEmpty);
     });
@@ -727,7 +731,7 @@ void main() {
       renderColoredBox.paint(mockContext, Offset.zero);
 
       expect(mockCanvas.rects.single, const Rect.fromLTWH(0, 0, 800, 600));
-      expect(mockCanvas.paints.single.color, colorToPaint);
+      expect(mockCanvas.paints.single.color, isSameColorAs(colorToPaint));
       expect(mockContext.children.single, renderSizedBox);
       expect(mockContext.offsets.single, Offset.zero);
     });
@@ -740,12 +744,13 @@ void main() {
       expect(properties.properties.first.value, colorToPaint);
     });
   });
+
   testWidgets('Inconsequential golden test', (WidgetTester tester) async {
     // The test validates the Flutter Gold integration. Any changes to the
     // golden file can be approved at any time.
     await tester.pumpWidget(RepaintBoundary(
       child: Container(
-        color: const Color(0xABCDABCD),
+        color: const Color(0xFF161145),
       ),
     ));
 
@@ -853,6 +858,7 @@ void main() {
         matchesSemantics(
           label: 'button',
           hasTapAction: true,
+          hasFocusAction: true,
           isButton: true,
           isFocusable: true,
           hasEnabledState: true,
@@ -1132,6 +1138,62 @@ void main() {
       contains('textDirection: ltr'),
       contains('verticalDirection: up'),
     ]));
+  });
+
+  testWidgets('Row and IgnoreBaseline (control -- with baseline)', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      const Row(
+        crossAxisAlignment: CrossAxisAlignment.baseline,
+        textBaseline: TextBaseline.alphabetic,
+        textDirection: TextDirection.ltr,
+        children: <Widget>[
+          Text(
+            'a',
+            textDirection: TextDirection.ltr,
+            style: TextStyle(fontSize: 128.0, fontFamily: 'FlutterTest'), // places baseline at y=96
+          ),
+          Text(
+            'b',
+            textDirection: TextDirection.ltr,
+            style: TextStyle(fontSize: 32.0, fontFamily: 'FlutterTest'), // 24 above baseline, 8 below baseline
+          ),
+        ],
+      ),
+    );
+
+    final Offset aPos = tester.getTopLeft(find.text('a'));
+    final Offset bPos = tester.getTopLeft(find.text('b'));
+    expect(aPos.dy, 0.0);
+    expect(bPos.dy, 96.0 - 24.0);
+  });
+
+  testWidgets('Row and IgnoreBaseline (with ignored baseline)', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      const Row(
+        crossAxisAlignment: CrossAxisAlignment.baseline,
+        textBaseline: TextBaseline.alphabetic,
+        textDirection: TextDirection.ltr,
+        children: <Widget>[
+          IgnoreBaseline(
+            child: Text(
+              'a',
+              textDirection: TextDirection.ltr,
+              style: TextStyle(fontSize: 128.0, fontFamily: 'FlutterTest'), // places baseline at y=96
+            ),
+          ),
+          Text(
+            'b',
+            textDirection: TextDirection.ltr,
+            style: TextStyle(fontSize: 32.0, fontFamily: 'FlutterTest'), // 24 above baseline, 8 below baseline
+          ),
+        ],
+      ),
+    );
+
+    final Offset aPos = tester.getTopLeft(find.text('a'));
+    final Offset bPos = tester.getTopLeft(find.text('b'));
+    expect(aPos.dy, 0.0);
+    expect(bPos.dy, 0.0);
   });
 }
 

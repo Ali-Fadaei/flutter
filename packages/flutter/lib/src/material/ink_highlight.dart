@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+/// @docImport 'ink_decoration.dart';
+/// @docImport 'ink_splash.dart';
+/// @docImport 'ink_well.dart';
+library;
+
 import 'package:flutter/widgets.dart';
 
 import 'ink_well.dart' show InteractiveInkFeature;
@@ -92,7 +97,7 @@ class InkHighlight extends InteractiveInkFeature {
   }
 
   void _handleAlphaStatusChanged(AnimationStatus status) {
-    if (status == AnimationStatus.dismissed && !_active) {
+    if (status.isDismissed && !_active) {
       dispose();
     }
   }
@@ -130,7 +135,7 @@ class InkHighlight extends InteractiveInkFeature {
   void paintFeature(Canvas canvas, Matrix4 transform) {
     final Paint paint = Paint()..color = color.withAlpha(_alpha.value);
     final Offset? originOffset = MatrixUtils.getAsTranslation(transform);
-    final Rect rect = _rectCallback != null ? _rectCallback!() : Offset.zero & referenceBox.size;
+    final Rect rect = _rectCallback != null ? _rectCallback() : Offset.zero & referenceBox.size;
     if (originOffset == null) {
       canvas.save();
       canvas.transform(transform.storage);

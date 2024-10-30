@@ -2,6 +2,13 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+/// @docImport 'animated_cross_fade.dart';
+/// @docImport 'animated_switcher.dart';
+/// @docImport 'implicit_animations.dart';
+/// @docImport 'navigator.dart';
+/// @docImport 'transitions.dart';
+library;
+
 import 'package:flutter/rendering.dart';
 
 import 'basic.dart';
@@ -41,10 +48,6 @@ import 'ticker_provider.dart';
 ///  * [SliverVisibility], the sliver equivalent of this widget.
 class Visibility extends StatelessWidget {
   /// Control whether the given [child] is [visible].
-  ///
-  /// The [child] and [replacement] arguments must not be null.
-  ///
-  /// The boolean arguments must not be null.
   ///
   /// The [maintainSemantics] and [maintainInteractivity] arguments can only be
   /// set if [maintainSize] is set.
@@ -332,10 +335,6 @@ class _VisibilityScope extends InheritedWidget {
 class SliverVisibility extends StatelessWidget {
   /// Control whether the given [sliver] is [visible].
   ///
-  /// The [sliver] and [replacementSliver] arguments must not be null.
-  ///
-  /// The boolean arguments must not be null.
-  ///
   /// The [maintainSemantics] and [maintainInteractivity] arguments can only be
   /// set if [maintainSize] is set.
   ///
@@ -371,8 +370,6 @@ class SliverVisibility extends StatelessWidget {
        );
 
   /// Control whether the given [sliver] is [visible].
-  ///
-  /// The [sliver] and [replacementSliver] arguments must not be null.
   ///
   /// This is equivalent to the default [SliverVisibility] constructor with all
   /// "maintain" fields set to true. This constructor should be used in place of

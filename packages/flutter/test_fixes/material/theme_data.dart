@@ -234,4 +234,15 @@ void main() {
   themeData = ThemeData(bottomAppBarColor: Colors.green);
   themeData = ThemeData.raw(bottomAppBarColor: Colors.green);
   themeData = ThemeData.copyWith(bottomAppBarColor: Colors.green);
+
+  // Changes made in https://github.com/flutter/flutter/pull/131455
+  ThemeData themeData = ThemeData.copyWith(useMaterial3: false);
+
+  // Changes made in https://github.com/flutter/flutter/pull/155072
+  ThemeData themeData = ThemeData();
+  themeData = ThemeData(dialogBackgroundColor: Colors.orange);
+  themeData = ThemeData(dialogBackgroundColor: Colors.orange, dialogTheme: DialogThemeData(backgroundColor: Colors.red));
+  themeData = themeData.copyWith(dialogBackgroundColor: Colors.orange);
+  themeData = themeData.copyWith(dialogBackgroundColor: Colors.orange, dialogTheme: DialogThemeData(backgroundColor: Colors.red));
+  themeData.dialogBackgroundColor; // Removing field reference not supported.
 }

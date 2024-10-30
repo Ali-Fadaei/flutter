@@ -85,9 +85,9 @@ class _ShortcutsExampleState extends State<ShortcutsExample> {
   @override
   Widget build(BuildContext context) {
     return Shortcuts(
-      shortcuts: <ShortcutActivator, Intent>{
-        LogicalKeySet(LogicalKeyboardKey.arrowUp): const IncrementIntent(2),
-        LogicalKeySet(LogicalKeyboardKey.arrowDown): const DecrementIntent(2),
+      shortcuts: const <ShortcutActivator, Intent>{
+        SingleActivator(LogicalKeyboardKey.arrowUp): IncrementIntent(2),
+        SingleActivator(LogicalKeyboardKey.arrowDown): DecrementIntent(2),
       },
       child: Actions(
         actions: <Type, Action<Intent>>{
@@ -100,8 +100,8 @@ class _ShortcutsExampleState extends State<ShortcutsExample> {
             children: <Widget>[
               const Text('Add to the counter by pressing the up arrow key'),
               const Text('Subtract from the counter by pressing the down arrow key'),
-              AnimatedBuilder(
-                animation: model,
+              ListenableBuilder(
+                listenable: model,
                 builder: (BuildContext context, Widget? child) {
                   return Text('count: ${model.count}');
                 },

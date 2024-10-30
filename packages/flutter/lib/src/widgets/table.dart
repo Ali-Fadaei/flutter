@@ -2,6 +2,10 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+/// @docImport 'scroll_view.dart';
+/// @docImport 'sliver.dart';
+library;
+
 import 'dart:collection';
 
 import 'package:flutter/foundation.dart';
@@ -112,9 +116,6 @@ class _TableElementRow {
 ///  * The [catalog of layout widgets](https://flutter.dev/widgets/layout/).
 class Table extends RenderObjectWidget {
   /// Creates a table.
-  ///
-  /// The [children], [defaultColumnWidth], and [defaultVerticalAlignment]
-  /// arguments must not be null.
   Table({
     super.key,
     this.children = const <TableRow>[],
@@ -169,8 +170,7 @@ class Table extends RenderObjectWidget {
 
   /// The rows of the table.
   ///
-  /// Every row in a table must have the same number of children, and all the
-  /// children must be non-null.
+  /// Every row in a table must have the same number of children.
   final List<TableRow> children;
 
   /// How the horizontal extents of the columns of this table should be determined.
@@ -401,6 +401,9 @@ class _TableElement extends RenderObjectElement {
 /// the [TableCell] widget to its enclosing [Table] must contain only
 /// [TableRow]s, [StatelessWidget]s, or [StatefulWidget]s (not
 /// other kinds of widgets, like [RenderObjectWidget]s).
+///
+/// To create an empty [TableCell], provide a [SizedBox.shrink]
+/// as the [child].
 class TableCell extends ParentDataWidget<TableCellParentData> {
   /// Creates a widget that controls how a child of a [Table] is aligned.
   const TableCell({
@@ -417,10 +420,7 @@ class TableCell extends ParentDataWidget<TableCellParentData> {
     final TableCellParentData parentData = renderObject.parentData! as TableCellParentData;
     if (parentData.verticalAlignment != verticalAlignment) {
       parentData.verticalAlignment = verticalAlignment;
-      final AbstractNode? targetParent = renderObject.parent;
-      if (targetParent is RenderObject) {
-        targetParent.markNeedsLayout();
-      }
+      renderObject.parent?.markNeedsLayout();
     }
   }
 

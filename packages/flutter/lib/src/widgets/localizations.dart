@@ -2,6 +2,13 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+/// @docImport 'package:flutter/material.dart';
+/// @docImport 'package:flutter_localizations/flutter_localizations.dart';
+///
+/// @docImport 'app.dart';
+/// @docImport 'reorderable_list.dart';
+library;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
 
@@ -96,7 +103,7 @@ Future<Map<Type, dynamic>> _loadAll(Locale locale, Iterable<LocalizationsDelegat
 /// the object created by an individual delegate's [load] method.
 ///
 /// An example of a class used as the value of `T` here would be
-/// MaterialLocalizations.
+/// [MaterialLocalizations].
 abstract class LocalizationsDelegate<T> {
   /// Abstract const constructor. This constructor enables subclasses to provide
   /// const constructors so that they can be used in const expressions.

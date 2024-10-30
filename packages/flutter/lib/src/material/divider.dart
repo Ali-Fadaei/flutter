@@ -2,6 +2,12 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+/// @docImport 'color_scheme.dart';
+/// @docImport 'drawer.dart';
+/// @docImport 'list_tile.dart';
+/// @docImport 'popup_menu.dart';
+library;
+
 import 'package:flutter/widgets.dart';
 
 import 'divider_theme.dart';
@@ -327,8 +333,6 @@ class _DividerDefaultsM2 extends DividerThemeData {
 // "END GENERATED" comments are generated from data in the Material
 // Design token database by the script:
 //   dev/tools/gen_defaults/bin/gen_defaults.dart.
-
-// Token database version: v0_162
 
 class _DividerDefaultsM3 extends DividerThemeData {
   const _DividerDefaultsM3(this.context) : super(

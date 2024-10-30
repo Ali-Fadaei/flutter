@@ -2,6 +2,10 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+/// @docImport 'color_scheme.dart';
+/// @docImport 'material.dart';
+library;
+
 import 'dart:math' as math;
 
 import 'package:flutter/widgets.dart';
@@ -155,8 +159,6 @@ class _ElevationOpacity {
 // "END GENERATED" comments are generated from data in the Material
 // Design token database by the script:
 //   dev/tools/gen_defaults/bin/gen_defaults.dart.
-
-// Token database version: v0_162
 
 // Surface tint opacities based on elevations according to the
 // Material Design 3 specification:

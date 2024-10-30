@@ -144,7 +144,7 @@ void main() {
     expect(find.byType(ExpandIcon), findsOneWidget);
     await tester.tap(find.byType(ExpandIcon));
     expect(capturedIndex, 0);
-    expect(capturedIsExpanded, isFalse);
+    expect(capturedIsExpanded, isTrue);
     box = tester.renderObject(find.byType(ExpansionPanelList));
     expect(box.size.height, equals(oldHeight));
 
@@ -178,11 +178,12 @@ void main() {
     expect(box.size.height - oldHeight, greaterThanOrEqualTo(100.0)); // 100 + some margin
   });
 
-  testWidgets('ExpansionPanelList does not merge header when canTapOnHeader is false', (WidgetTester tester) async {
+  testWidgets('Material2 - ExpansionPanelList does not merge header when canTapOnHeader is false', (WidgetTester tester) async {
     final SemanticsHandle handle = tester.ensureSemantics();
     final Key headerKey = UniqueKey();
     await tester.pumpWidget(
       MaterialApp(
+        theme: ThemeData(useMaterial3: false),
         home: ExpansionPanelListSemanticsTest(headerKey: headerKey),
       ),
     );
@@ -210,6 +211,60 @@ void main() {
       isEnabled: true,
       isFocusable: true,
       hasTapAction: true,
+      hasFocusAction: true,
+    ));
+
+    // Check custom header widget semantics is preserved.
+    final Finder headerWidget = find.descendant(
+      of: find.byKey(headerKey),
+      matching: find.byType(RichText),
+    );
+    expect(tester.getSemantics(headerWidget), matchesSemantics(
+      label: 'head1',
+      hasTapAction: true,
+    ));
+
+    handle.dispose();
+  });
+
+  testWidgets('Material3 - ExpansionPanelList does not merge header when canTapOnHeader is false', (WidgetTester tester) async {
+    final SemanticsHandle handle = tester.ensureSemantics();
+    final Key headerKey = UniqueKey();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ExpansionPanelListSemanticsTest(headerKey: headerKey),
+      ),
+    );
+
+    // Make sure custom gesture detector widget is clickable.
+    await tester.tap(find.text('head1'));
+    await tester.pump();
+
+    final ExpansionPanelListSemanticsTestState state =
+      tester.state(find.byType(ExpansionPanelListSemanticsTest));
+    expect(state.headerTapped, true);
+
+    // Check the expansion icon semantics does not merged with header widget.
+    final Finder expansionIcon = find.descendant(
+      of: find.ancestor(
+        of: find.byKey(headerKey),
+        matching: find.byType(Row),
+      ),
+      matching: find.byType(ExpandIcon),
+    );
+
+    expect(tester.getSemantics(expansionIcon), matchesSemantics(
+      label: 'Expand',
+      children: <Matcher>[
+        matchesSemantics(
+          isButton: true,
+          hasEnabledState: true,
+          isEnabled: true,
+          isFocusable: true,
+          hasTapAction: true,
+          hasFocusAction: true,
+        ),
+      ],
     ));
 
     // Check custom header widget semantics is preserved.
@@ -556,7 +611,7 @@ void main() {
     // Callback is invoked once with appropriate arguments
     expect(callbackHistory.length, equals(1));
     expect(callbackHistory.last['index'], equals(1));
-    expect(callbackHistory.last['isExpanded'], equals(false));
+    expect(callbackHistory.last['isExpanded'], equals(true));
 
     // Close the same panel
     await tester.tap(find.byType(ExpandIcon).at(1));
@@ -565,7 +620,7 @@ void main() {
     // Callback is invoked once with appropriate arguments
     expect(callbackHistory.length, equals(2));
     expect(callbackHistory.last['index'], equals(1));
-    expect(callbackHistory.last['isExpanded'], equals(true));
+    expect(callbackHistory.last['isExpanded'], equals(false));
   });
 
   testWidgets('Radio mode calls expansionCallback twice if other panel open prior', (WidgetTester tester) async {
@@ -630,7 +685,7 @@ void main() {
     expect(callbackHistory.length, equals(1));
     callbackResults = callbackHistory[callbackHistory.length - 1];
     expect(callbackResults['index'], equals(1));
-    expect(callbackResults['isExpanded'], equals(false));
+    expect(callbackResults['isExpanded'], equals(true));
 
     // Close a different panel
     await tester.tap(find.byType(ExpandIcon).at(2));
@@ -639,13 +694,108 @@ void main() {
     // Callback is invoked the first time with correct arguments
     expect(callbackHistory.length, equals(3));
     callbackResults = callbackHistory[callbackHistory.length - 2];
-    expect(callbackResults['index'], equals(2));
+    expect(callbackResults['index'], equals(1));
     expect(callbackResults['isExpanded'], equals(false));
 
     // Callback is invoked the second time with correct arguments
     callbackResults = callbackHistory[callbackHistory.length - 1];
-    expect(callbackResults['index'], equals(1));
-    expect(callbackResults['isExpanded'], equals(false));
+    expect(callbackResults['index'], equals(2));
+    expect(callbackResults['isExpanded'], equals(true));
+  });
+
+  testWidgets('ExpansionPanelList.radio callback displays true or false based on the visibility of a list item',  (WidgetTester tester) async {
+    late int lastExpanded;
+    bool topElementExpanded = false;
+    bool bottomElementExpanded = false;
+
+    final List<ExpansionPanel> demoItemsRadio = <ExpansionPanelRadio>[
+      // topElement
+      ExpansionPanelRadio(
+        headerBuilder: (BuildContext context, bool isExpanded) {
+          return Text(isExpanded ? 'B' : 'A');
+        },
+        body: const SizedBox(height: 100.0),
+        value: 0,
+      ),
+      // bottomElement
+      ExpansionPanelRadio(
+        headerBuilder: (BuildContext context, bool isExpanded) {
+          return Text(isExpanded ? 'D' : 'C');
+        },
+        body: const SizedBox(height: 100.0),
+        value: 1,
+      ),
+    ];
+
+    final ExpansionPanelList expansionListRadio = ExpansionPanelList.radio(
+      children: demoItemsRadio,
+      expansionCallback: (int index, bool isExpanded)
+      {
+        lastExpanded = index;
+        if (index == 0)
+        {
+          topElementExpanded = isExpanded;
+          bottomElementExpanded = false;
+        }
+        else
+        {
+          topElementExpanded = false;
+          bottomElementExpanded = isExpanded;
+        }
+      }
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SingleChildScrollView(
+          child: expansionListRadio,
+        ),
+      ),
+    );
+
+    // Initializes with all panels closed.
+    expect(find.text('A'), findsOneWidget);
+    expect(find.text('B'), findsNothing);
+    expect(find.text('C'), findsOneWidget);
+    expect(find.text('D'), findsNothing);
+
+    await tester.tap(find.byType(ExpandIcon).at(0));
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.pumpAndSettle();
+
+    // Now the first panel is open.
+    expect(find.text('A'), findsNothing);
+    expect(find.text('B'), findsOneWidget);
+    expect(find.text('C'), findsOneWidget);
+    expect(find.text('D'), findsNothing);
+
+    expect(lastExpanded,0);
+    expect(topElementExpanded,true);
+
+    await tester.tap(find.byType(ExpandIcon).at(1));
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.pumpAndSettle();
+
+    // Open the other panel and ensure the first is now closed.
+    expect(lastExpanded,1);
+    expect(bottomElementExpanded,true);
+    expect(topElementExpanded,false);
+    expect(find.text('D'), findsOneWidget);
+    expect(find.text('A'), findsOneWidget);
+
+    await tester.tap(find.byType(ExpandIcon).at(1));
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.pumpAndSettle();
+
+    // Close the item that was expanded should now be false.
+    expect(lastExpanded,1);
+    expect(bottomElementExpanded,false);
+
+    // All panels should be closed.
+    expect(find.text('A'), findsOneWidget);
+    expect(find.text('B'), findsNothing);
+    expect(find.text('C'), findsOneWidget);
+    expect(find.text('D'), findsNothing);
   });
 
   testWidgets(
@@ -902,7 +1052,94 @@ void main() {
     await tester.pumpAndSettle();
   });
 
-  testWidgets('Panel header has semantics, canTapOnHeader = false ', (WidgetTester tester) async {
+  testWidgets('Material2 - Panel header has semantics, canTapOnHeader = false', (WidgetTester tester) async {
+    const Key expandedKey = Key('expanded');
+    const Key collapsedKey = Key('collapsed');
+    const DefaultMaterialLocalizations localizations = DefaultMaterialLocalizations();
+    final SemanticsHandle handle = tester.ensureSemantics();
+    final List<ExpansionPanel> demoItems = <ExpansionPanel>[
+      ExpansionPanel(
+        headerBuilder: (BuildContext context, bool isExpanded) {
+          return const Text('Expanded', key: expandedKey);
+        },
+        body: const SizedBox(height: 100.0),
+        isExpanded: true,
+      ),
+      ExpansionPanel(
+        headerBuilder: (BuildContext context, bool isExpanded) {
+          return const Text('Collapsed', key: collapsedKey);
+        },
+        body: const SizedBox(height: 100.0),
+      ),
+    ];
+
+    final ExpansionPanelList expansionList = ExpansionPanelList(
+      children: demoItems,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData(useMaterial3: false),
+        home: SingleChildScrollView(
+          child: expansionList,
+        ),
+      ),
+    );
+
+    // Check the semantics of [ExpandIcon] for expanded panel.
+    final Finder expandedIcon = find.descendant(
+      of: find.ancestor(
+        of: find.byKey(expandedKey),
+        matching: find.byType(Row),
+      ),
+      matching: find.byType(ExpandIcon),
+    );
+    expect(tester.getSemantics(expandedIcon), matchesSemantics(
+      label: 'Collapse',
+      isButton: true,
+      hasEnabledState: true,
+      isEnabled: true,
+      isFocusable: true,
+      hasTapAction: true,
+      hasFocusAction: true,
+      onTapHint: localizations.expandedIconTapHint,
+    ));
+
+    // Check the semantics of the header widget for expanded panel.
+    final Finder expandedHeader = find.byKey(expandedKey);
+    expect(tester.getSemantics(expandedHeader), matchesSemantics(
+      label: 'Expanded',
+    ));
+
+    // Check the semantics of [ExpandIcon] for collapsed panel.
+    final Finder collapsedIcon = find.descendant(
+      of: find.ancestor(
+        of: find.byKey(collapsedKey),
+        matching: find.byType(Row),
+      ),
+      matching: find.byType(ExpandIcon),
+    );
+    expect(tester.getSemantics(collapsedIcon), matchesSemantics(
+      label: 'Expand',
+      isButton: true,
+      hasEnabledState: true,
+      isEnabled: true,
+      isFocusable: true,
+      hasTapAction: true,
+      hasFocusAction: true,
+      onTapHint: localizations.collapsedIconTapHint,
+    ));
+
+    // Check the semantics of the header widget for expanded panel.
+    final Finder collapsedHeader = find.byKey(collapsedKey);
+    expect(tester.getSemantics(collapsedHeader), matchesSemantics(
+      label: 'Collapsed',
+    ));
+
+    handle.dispose();
+  });
+
+  testWidgets('Material3 - Panel header has semantics, canTapOnHeader = false', (WidgetTester tester) async {
     const Key expandedKey = Key('expanded');
     const Key collapsedKey = Key('collapsed');
     const DefaultMaterialLocalizations localizations = DefaultMaterialLocalizations();
@@ -943,14 +1180,20 @@ void main() {
       ),
       matching: find.byType(ExpandIcon),
     );
+
     expect(tester.getSemantics(expandedIcon), matchesSemantics(
       label: 'Collapse',
-      isButton: true,
-      hasEnabledState: true,
-      isEnabled: true,
-      isFocusable: true,
-      hasTapAction: true,
       onTapHint: localizations.expandedIconTapHint,
+      children: <Matcher>[
+        matchesSemantics(
+          isButton: true,
+          hasEnabledState: true,
+          isEnabled: true,
+          isFocusable: true,
+          hasTapAction: true,
+          hasFocusAction: true,
+        ),
+      ],
     ));
 
     // Check the semantics of the header widget for expanded panel.
@@ -969,12 +1212,17 @@ void main() {
     );
     expect(tester.getSemantics(collapsedIcon), matchesSemantics(
       label: 'Expand',
-      isButton: true,
-      hasEnabledState: true,
-      isEnabled: true,
-      isFocusable: true,
-      hasTapAction: true,
       onTapHint: localizations.collapsedIconTapHint,
+      children: <Matcher>[
+        matchesSemantics(
+          isButton: true,
+          hasEnabledState: true,
+          isEnabled: true,
+          isFocusable: true,
+          hasTapAction: true,
+          hasFocusAction: true,
+        ),
+      ],
     ));
 
     // Check the semantics of the header widget for expanded panel.
@@ -1026,6 +1274,7 @@ void main() {
       isFocusable: true,
       hasEnabledState: true,
       hasTapAction: true,
+      hasFocusAction: true,
     ));
 
     expect(tester.getSemantics(find.byKey(collapsedKey)), matchesSemantics(
@@ -1034,6 +1283,7 @@ void main() {
       isFocusable: true,
       hasEnabledState: true,
       hasTapAction: true,
+      hasFocusAction: true,
     ));
 
     handle.dispose();
@@ -1704,5 +1954,110 @@ void main() {
         expect(e.size, 16);
       }
     }
+  });
+
+  testWidgets('Ensure IconButton splashColor and highlightColor are correctly set when canTapOnHeader is false', (WidgetTester tester) async {
+    const Color expectedSplashColor = Colors.green;
+    const Color expectedHighlightColor = Colors.yellow;
+
+    await tester.pumpWidget(MaterialApp(
+      home: SingleChildScrollView(
+        child: ExpansionPanelList(
+          children: <ExpansionPanel>[
+            ExpansionPanel(
+              headerBuilder: (BuildContext context, bool isExpanded) {
+                return const ListTile(title: Text('Panel 1'));
+              },
+              body: const ListTile(title: Text('Content for Panel 1')),
+              splashColor: expectedSplashColor,
+              highlightColor: expectedHighlightColor,
+            ),
+          ],
+        ),
+      ),
+    ));
+
+    await tester.tap(find.text('Panel 1'));
+    await tester.pumpAndSettle();
+
+    final IconButton iconButton = tester.widget(find.byType(IconButton).first);
+    expect(iconButton.splashColor, expectedSplashColor);
+    expect(iconButton.highlightColor, expectedHighlightColor);
+  });
+
+  testWidgets('Ensure InkWell splashColor and highlightColor are correctly set when canTapOnHeader is true', (WidgetTester tester) async {
+    const Color expectedSplashColor = Colors.green;
+    const Color expectedHighlightColor = Colors.yellow;
+
+    await tester.pumpWidget(MaterialApp(
+      home: SingleChildScrollView(
+        child: ExpansionPanelList(
+          children: <ExpansionPanel>[
+            ExpansionPanel(
+              canTapOnHeader: true,
+              headerBuilder: (BuildContext context, bool isExpanded) {
+                return Container(
+                  padding: const EdgeInsets.all(16),
+                  alignment: Alignment.centerLeft,
+                  child: const Text('Panel 1'),
+                );
+              },
+              body: const ListTile(title: Text('Content for Panel 1')),
+              splashColor: expectedSplashColor,
+              highlightColor: expectedHighlightColor,
+            ),
+          ],
+        ),
+      ),
+    ));
+
+    await tester.pumpAndSettle();
+
+    final Finder inkWellFinder = find.descendant(
+      of: find.byType(ExpansionPanelList),
+      matching: find.byWidgetPredicate((Widget widget) =>
+        widget is InkWell && widget.onTap != null)
+    );
+
+    final InkWell inkWell = tester.widget<InkWell>(inkWellFinder);
+    expect(inkWell.splashColor, expectedSplashColor);
+    expect(inkWell.highlightColor, expectedHighlightColor);
+  });
+
+  testWidgets('ExpandIcon.disabledColor uses expandIconColor color when canTapOnHeader is true', (WidgetTester tester) async {
+    const Color expandIconColor = Color(0xff0000ff);
+
+    Widget buildWidget({ bool canTapOnHeader = false }) {
+      return MaterialApp(
+        home: SingleChildScrollView(
+          child: ExpansionPanelList(
+            expandIconColor: expandIconColor,
+            children: <ExpansionPanel>[
+              ExpansionPanel(
+                canTapOnHeader: canTapOnHeader,
+                headerBuilder: (BuildContext context, bool isExpanded) {
+                  return const ListTile(title: Text('Panel'));
+                },
+                body: const ListTile(title: Text('Content for Panel')),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    await tester.pumpWidget(buildWidget());
+
+    await tester.tap(find.text('Panel'));
+    await tester.pumpAndSettle();
+
+    ExpandIcon expandIcon = tester.widget(find.byType(ExpandIcon));
+    expect(expandIcon.disabledColor, isNull);
+
+    await tester.pumpWidget(buildWidget(canTapOnHeader: true));
+    await tester.pumpAndSettle();
+
+    expandIcon = tester.widget(find.byType(ExpandIcon));
+    expect(expandIcon.disabledColor, expandIconColor);
   });
 }

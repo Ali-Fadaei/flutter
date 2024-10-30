@@ -20,7 +20,7 @@ class _${blockName}DefaultsM3 extends ${blockName}ThemeData {
   late final ColorScheme _colors = Theme.of(context).colorScheme;
   late final TextTheme _textTheme = Theme.of(context).textTheme;
 
-  static double fullScreenBarHeight = ${tokens['md.comp.search-view.full-screen.header.container.height']};
+  static double fullScreenBarHeight = ${getToken('md.comp.search-view.full-screen.header.container.height')};
 
   @override
   Color? get backgroundColor => ${componentColor('md.comp.search-view.container')};
@@ -46,6 +46,9 @@ class _${blockName}DefaultsM3 extends ${blockName}ThemeData {
 
   @override
   BoxConstraints get constraints => const BoxConstraints(minWidth: 360.0, minHeight: 240.0);
+
+  @override
+  EdgeInsetsGeometry? get barPadding => const EdgeInsets.symmetric(horizontal: 8.0);
 
   @override
   Color? get dividerColor => ${componentColor('md.comp.search-view.divider')};

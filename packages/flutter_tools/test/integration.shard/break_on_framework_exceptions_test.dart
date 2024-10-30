@@ -2,13 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// TODO(gspencergoog): Remove this tag once this test's state leaks/test
-// dependencies have been fixed.
-// https://github.com/flutter/flutter/issues/85160
-// Fails with "flutter test --test-randomize-ordering-seed=1000"
-@Tags(<String>['no-shuffle'])
-library;
-
 import 'dart:async';
 
 import 'package:file/file.dart';
@@ -49,7 +42,7 @@ void main() {
 
     int? breakLine;
     await _timeoutAfter(
-      message: 'Timed out getting source location of top stack frome',
+      message: 'Timed out getting source location of top stack frame',
       work: () async => breakLine = (await flutter.getSourceLocation())?.line,
     );
 
@@ -359,7 +352,7 @@ void main() {
       SchedulerBinding.instance!.addTimingsCallback((List<FrameTiming> timings) {
         throw 'TimingsCallback';
       });
-      ui.window.onReportTimings!(<FrameTiming>[]);
+      ui.PlatformDispatcher.instance.onReportTimings!(<FrameTiming>[]);
       '''
     );
 
@@ -637,7 +630,7 @@ class TestProject extends Project {
   final String pubspec = '''
     name: test
     environment:
-      sdk: '>=3.0.0-0 <4.0.0'
+      sdk: '>=3.2.0-0 <4.0.0'
 
     dependencies:
       flutter:

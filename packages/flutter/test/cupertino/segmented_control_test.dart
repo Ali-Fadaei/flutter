@@ -61,28 +61,20 @@ int getChildCount(WidgetTester tester) {
 }
 
 ui.RRect getSurroundingRect(WidgetTester tester, {int child = 0}) {
-  // Using dynamic so the test can access private classes.
-  // ignore: avoid_dynamic_calls
   return ((getRenderSegmentedControl(tester) as RenderBoxContainerDefaultsMixin<RenderBox, ContainerBoxParentData<RenderBox>>)
       .getChildrenAsList()[child].parentData! as dynamic).surroundingRect as ui.RRect;
 }
 
 Size getChildSize(WidgetTester tester, {int child = 0}) {
-  // Using dynamic so the test can access private classes.
-  // ignore: avoid_dynamic_calls
   return (getRenderSegmentedControl(tester) as RenderBoxContainerDefaultsMixin<RenderBox, ContainerBoxParentData<RenderBox>>)
       .getChildrenAsList()[child].size;
 }
 
 Color getBorderColor(WidgetTester tester) {
-  // Using dynamic so the test can access a private class.
-  // ignore: avoid_dynamic_calls
   return (getRenderSegmentedControl(tester) as dynamic).borderColor as Color;
 }
 
 int? getSelectedIndex(WidgetTester tester) {
-  // Using dynamic so the test can access a private class.
-  // ignore: avoid_dynamic_calls
   return (getRenderSegmentedControl(tester) as dynamic).selectedIndex as int?;
 }
 
@@ -345,7 +337,7 @@ void main() {
       DefaultTextStyle textStyle = tester.widget(find.widgetWithText(DefaultTextStyle, 'Child 1').first);
       IconThemeData iconTheme = IconTheme.of(tester.element(find.byIcon(const IconData(1))));
 
-      expect(textStyle.style.color, isSameColorAs(CupertinoColors.black));
+      expect(textStyle.style.color, isSameColorAs(CupertinoColors.white));
       expect(iconTheme.color, isSameColorAs(CupertinoColors.systemBlue.darkColor));
 
       await tester.tap(find.byIcon(const IconData(1)));
@@ -356,7 +348,7 @@ void main() {
       iconTheme = IconTheme.of(tester.element(find.byIcon(const IconData(1))));
 
       expect(textStyle.style.color, isSameColorAs(CupertinoColors.systemBlue.darkColor));
-      expect(iconTheme.color, isSameColorAs(CupertinoColors.black));
+      expect(iconTheme.color, isSameColorAs(CupertinoColors.white));
     },
   );
 
@@ -410,11 +402,15 @@ void main() {
     expect(getBackgroundColor(tester, 1), CupertinoColors.activeGreen.color);
 
     final Offset center = tester.getCenter(find.text('Child 1'));
-    await tester.startGesture(center);
+    final TestGesture gesture = await tester.startGesture(center);
     await tester.pumpAndSettle();
 
     expect(getBackgroundColor(tester, 0), const Color(0x638CFC7B));
     expect(getBackgroundColor(tester, 1), CupertinoColors.activeGreen.color);
+
+    // Finish gesture to release resources.
+    await gesture.up();
+    await tester.pumpAndSettle();
   });
 
   testWidgets('Widgets are centered within segments', (WidgetTester tester) async {
@@ -604,11 +600,15 @@ void main() {
     expect(getBackgroundColor(tester, 1), isSameColorAs(CupertinoColors.white));
 
     final Offset center = tester.getCenter(find.text('Child 2'));
-    await tester.startGesture(center);
+    final TestGesture gesture = await tester.startGesture(center);
     await tester.pumpAndSettle();
 
     expect(getBackgroundColor(tester, 0), CupertinoColors.activeBlue);
     expect(getBackgroundColor(tester, 1), const Color(0x33007aff));
+
+    // Finish gesture to release resources.
+    await gesture.up();
+    await tester.pumpAndSettle();
   });
 
   testWidgets('Long press does not change background color of currently-selected child', (WidgetTester tester) async {
@@ -618,11 +618,15 @@ void main() {
     expect(getBackgroundColor(tester, 1), isSameColorAs(CupertinoColors.white));
 
     final Offset center = tester.getCenter(find.text('Child 1'));
-    await tester.startGesture(center);
+    final TestGesture gesture = await tester.startGesture(center);
     await tester.pumpAndSettle();
 
     expect(getBackgroundColor(tester, 0), CupertinoColors.activeBlue);
     expect(getBackgroundColor(tester, 1), isSameColorAs(CupertinoColors.white));
+
+    // Finish gesture to release resources.
+    await gesture.up();
+    await tester.pumpAndSettle();
   });
 
   testWidgets('Height of segmented control is determined by tallest widget', (WidgetTester tester) async {
@@ -825,6 +829,7 @@ void main() {
                 flags: <SemanticsFlag>[
                   SemanticsFlag.isButton,
                   SemanticsFlag.isInMutuallyExclusiveGroup,
+                  SemanticsFlag.hasSelectedState,
                   SemanticsFlag.isSelected,
                 ],
                 actions: <SemanticsAction>[
@@ -836,6 +841,8 @@ void main() {
                 flags: <SemanticsFlag>[
                   SemanticsFlag.isButton,
                   SemanticsFlag.isInMutuallyExclusiveGroup,
+                  // Declares that it is selectable, but not currently selected.
+                  SemanticsFlag.hasSelectedState,
                 ],
                 actions: <SemanticsAction>[
                   SemanticsAction.tap,
@@ -862,6 +869,8 @@ void main() {
               flags: <SemanticsFlag>[
                 SemanticsFlag.isButton,
                 SemanticsFlag.isInMutuallyExclusiveGroup,
+                // Declares that it is selectable, but not currently selected.
+                SemanticsFlag.hasSelectedState,
               ],
               actions: <SemanticsAction>[
                 SemanticsAction.tap,
@@ -872,6 +881,7 @@ void main() {
               flags: <SemanticsFlag>[
                 SemanticsFlag.isButton,
                 SemanticsFlag.isInMutuallyExclusiveGroup,
+                SemanticsFlag.hasSelectedState,
                 SemanticsFlag.isSelected,
               ],
               actions: <SemanticsAction>[
@@ -1016,28 +1026,28 @@ void main() {
     await tester.tap(find.text('Child 2'));
 
     await tester.pump();
-    expect(getBackgroundColor(tester, 0), CupertinoColors.activeBlue);
-    expect(getBackgroundColor(tester, 1), const Color(0x33007aff));
+    expect(getBackgroundColor(tester, 0), isSameColorAs(CupertinoColors.activeBlue));
+    expect(getBackgroundColor(tester, 1), isSameColorAs(const Color(0x33007aff)));
 
     await tester.pump(const Duration(milliseconds: 40));
-    expect(getBackgroundColor(tester, 0), const Color(0xff3d9aff));
-    expect(getBackgroundColor(tester, 1), const Color(0x64007aff));
+    expect(getBackgroundColor(tester, 0), isSameColorAs(const Color(0xff3d9aff)));
+    expect(getBackgroundColor(tester, 1), isSameColorAs(const Color(0x64007aff)));
 
     await tester.pump(const Duration(milliseconds: 40));
-    expect(getBackgroundColor(tester, 0), const Color(0xff7bbaff));
-    expect(getBackgroundColor(tester, 1), const Color(0x95007aff));
+    expect(getBackgroundColor(tester, 0), isSameColorAs(const Color(0xff7bbaff)));
+    expect(getBackgroundColor(tester, 1), isSameColorAs(const Color(0x95007aff)));
 
     await tester.pump(const Duration(milliseconds: 40));
-    expect(getBackgroundColor(tester, 0), const Color(0xffb9daff));
-    expect(getBackgroundColor(tester, 1), const Color(0xc7007aff));
+    expect(getBackgroundColor(tester, 0), isSameColorAs(const Color(0xffb9daff)));
+    expect(getBackgroundColor(tester, 1), isSameColorAs(const Color(0xc7007aff)));
 
     await tester.pump(const Duration(milliseconds: 40));
-    expect(getBackgroundColor(tester, 0), const Color(0xfff7faff));
-    expect(getBackgroundColor(tester, 1), const Color(0xf8007aff));
+    expect(getBackgroundColor(tester, 0), isSameColorAs(const Color(0xfff7faff)));
+    expect(getBackgroundColor(tester, 1), isSameColorAs(const Color(0xf8007aff)));
 
     await tester.pump(const Duration(milliseconds: 40));
     expect(getBackgroundColor(tester, 0), isSameColorAs(CupertinoColors.white));
-    expect(getBackgroundColor(tester, 1), CupertinoColors.activeBlue);
+    expect(getBackgroundColor(tester, 1), isSameColorAs(CupertinoColors.activeBlue));
   });
 
   testWidgets('Animation is correct when widget is rebuilt', (WidgetTester tester) async {
@@ -1083,8 +1093,8 @@ void main() {
         },
       ),
     );
-    expect(getBackgroundColor(tester, 0), CupertinoColors.activeBlue);
-    expect(getBackgroundColor(tester, 1), const Color(0x33007aff));
+    expect(getBackgroundColor(tester, 0), isSameColorAs(CupertinoColors.activeBlue));
+    expect(getBackgroundColor(tester, 1), isSameColorAs(const Color(0x33007aff)));
 
     await tester.pumpWidget(
       StatefulBuilder(
@@ -1102,10 +1112,10 @@ void main() {
           );
         },
       ),
-      const Duration(milliseconds: 40),
+      duration: const Duration(milliseconds: 40),
     );
-    expect(getBackgroundColor(tester, 0), const Color(0xff3d9aff));
-    expect(getBackgroundColor(tester, 1), const Color(0x64007aff));
+    expect(getBackgroundColor(tester, 0), isSameColorAs(const Color(0xff3d9aff)));
+    expect(getBackgroundColor(tester, 1), isSameColorAs(const Color(0x64007aff)));
 
     await tester.pumpWidget(
       StatefulBuilder(
@@ -1123,10 +1133,10 @@ void main() {
           );
         },
       ),
-      const Duration(milliseconds: 40),
+      duration: const Duration(milliseconds: 40),
     );
-    expect(getBackgroundColor(tester, 0), const Color(0xff7bbaff));
-    expect(getBackgroundColor(tester, 1), const Color(0x95007aff));
+    expect(getBackgroundColor(tester, 0), isSameColorAs(const Color(0xff7bbaff)));
+    expect(getBackgroundColor(tester, 1), isSameColorAs(const Color(0x95007aff)));
 
     await tester.pumpWidget(
       StatefulBuilder(
@@ -1144,10 +1154,10 @@ void main() {
           );
         },
       ),
-      const Duration(milliseconds: 40),
+      duration: const Duration(milliseconds: 40),
     );
-    expect(getBackgroundColor(tester, 0), const Color(0xffb9daff));
-    expect(getBackgroundColor(tester, 1), const Color(0xc7007aff));
+    expect(getBackgroundColor(tester, 0), isSameColorAs(const Color(0xffb9daff)));
+    expect(getBackgroundColor(tester, 1), isSameColorAs(const Color(0xc7007aff)));
 
     await tester.pumpWidget(
       StatefulBuilder(
@@ -1165,10 +1175,10 @@ void main() {
           );
         },
       ),
-      const Duration(milliseconds: 40),
+      duration: const Duration(milliseconds: 40),
     );
-    expect(getBackgroundColor(tester, 0), const Color(0xfff7faff));
-    expect(getBackgroundColor(tester, 1), const Color(0xf8007aff));
+    expect(getBackgroundColor(tester, 0), isSameColorAs(const Color(0xfff7faff)));
+    expect(getBackgroundColor(tester, 1), isSameColorAs(const Color(0xf8007aff)));
 
     await tester.pumpWidget(
       StatefulBuilder(
@@ -1186,10 +1196,10 @@ void main() {
           );
         },
       ),
-      const Duration(milliseconds: 40),
+      duration: const Duration(milliseconds: 40),
     );
     expect(getBackgroundColor(tester, 0), isSameColorAs(CupertinoColors.white));
-    expect(getBackgroundColor(tester, 1), CupertinoColors.activeBlue);
+    expect(getBackgroundColor(tester, 1), isSameColorAs(CupertinoColors.activeBlue));
   });
 
   testWidgets('Multiple segments are pressed', (WidgetTester tester) async {
@@ -1220,18 +1230,23 @@ void main() {
 
     expect(getBackgroundColor(tester, 1), isSameColorAs(CupertinoColors.white));
 
-    await tester.startGesture(tester.getCenter(find.text('B')));
+    final TestGesture gesture1 = await tester.startGesture(tester.getCenter(find.text('B')));
     await tester.pumpAndSettle(const Duration(milliseconds: 200));
 
     expect(getBackgroundColor(tester, 1), const Color(0x33007aff));
     expect(getBackgroundColor(tester, 2), isSameColorAs(CupertinoColors.white));
 
-    await tester.startGesture(tester.getCenter(find.text('C')));
+    final TestGesture gesture2 = await tester.startGesture(tester.getCenter(find.text('C')));
     await tester.pumpAndSettle(const Duration(milliseconds: 200));
 
     // Press on C has no effect while B is held down.
     expect(getBackgroundColor(tester, 1), const Color(0x33007aff));
     expect(getBackgroundColor(tester, 2), isSameColorAs(CupertinoColors.white));
+
+    // Finish gesture to release resources.
+    await gesture1.up();
+    await gesture2.up();
+    await tester.pumpAndSettle();
   });
 
   testWidgets('Transition is triggered while a transition is already occurring', (WidgetTester tester) async {
@@ -1263,12 +1278,12 @@ void main() {
     await tester.tap(find.text('B'));
 
     await tester.pump();
-    expect(getBackgroundColor(tester, 0), CupertinoColors.activeBlue);
-    expect(getBackgroundColor(tester, 1), const Color(0x33007aff));
+    expect(getBackgroundColor(tester, 0), isSameColorAs(CupertinoColors.activeBlue));
+    expect(getBackgroundColor(tester, 1), isSameColorAs(const Color(0x33007aff)));
 
     await tester.pump(const Duration(milliseconds: 40));
-    expect(getBackgroundColor(tester, 0), const Color(0xff3d9aff));
-    expect(getBackgroundColor(tester, 1), const Color(0x64007aff));
+    expect(getBackgroundColor(tester, 0), isSameColorAs(const Color(0xff3d9aff)));
+    expect(getBackgroundColor(tester, 1), isSameColorAs(const Color(0x64007aff)));
 
     // While A to B transition is occurring, press on C.
     await tester.tap(find.text('C'));
@@ -1276,24 +1291,24 @@ void main() {
     await tester.pump();
 
     // A and B are now both transitioning to white.
-    expect(getBackgroundColor(tester, 0), const Color(0xff3d9aff));
-    expect(getBackgroundColor(tester, 1), const Color(0xffc1deff));
-    expect(getBackgroundColor(tester, 2), const Color(0x33007aff));
+    expect(getBackgroundColor(tester, 0), isSameColorAs(const Color(0xff3d9aff)));
+    expect(getBackgroundColor(tester, 1), isSameColorAs(const Color(0xffc1deff)));
+    expect(getBackgroundColor(tester, 2), isSameColorAs(const Color(0x33007aff)));
 
     await tester.pump(const Duration(milliseconds: 40));
     // B background color has reached unselected state.
-    expect(getBackgroundColor(tester, 0), const Color(0xff7bbaff));
+    expect(getBackgroundColor(tester, 0), isSameColorAs(const Color(0xff7bbaff)));
     expect(getBackgroundColor(tester, 1), isSameColorAs(CupertinoColors.white));
-    expect(getBackgroundColor(tester, 2), const Color(0x64007aff));
+    expect(getBackgroundColor(tester, 2), isSameColorAs(const Color(0x64007aff)));
 
     await tester.pump(const Duration(milliseconds: 100));
     // A background color has reached unselected state.
     expect(getBackgroundColor(tester, 0), isSameColorAs(CupertinoColors.white));
-    expect(getBackgroundColor(tester, 2), const Color(0xe0007aff));
+    expect(getBackgroundColor(tester, 2), isSameColorAs(const Color(0xe0007aff)));
 
     await tester.pump(const Duration(milliseconds: 40));
     // C background color has reached selected state.
-    expect(getBackgroundColor(tester, 2), CupertinoColors.activeBlue);
+    expect(getBackgroundColor(tester, 2), isSameColorAs(CupertinoColors.activeBlue));
   });
 
   testWidgets('Segment is selected while it is transitioning to unselected state', (WidgetTester tester) async {
@@ -1302,12 +1317,12 @@ void main() {
     await tester.tap(find.text('Child 2'));
 
     await tester.pump();
-    expect(getBackgroundColor(tester, 0), CupertinoColors.activeBlue);
-    expect(getBackgroundColor(tester, 1), const Color(0x33007aff));
+    expect(getBackgroundColor(tester, 0), isSameColorAs(CupertinoColors.activeBlue));
+    expect(getBackgroundColor(tester, 1), isSameColorAs(const Color(0x33007aff)));
 
     await tester.pump(const Duration(milliseconds: 40));
-    expect(getBackgroundColor(tester, 0), const Color(0xff3d9aff));
-    expect(getBackgroundColor(tester, 1), const Color(0x64007aff));
+    expect(getBackgroundColor(tester, 0), isSameColorAs(const Color(0xff3d9aff)));
+    expect(getBackgroundColor(tester, 1), isSameColorAs(const Color(0x64007aff)));
 
     // While A to B transition is occurring, press on A again.
     await tester.tap(find.text('Child 1'));
@@ -1315,12 +1330,12 @@ void main() {
     await tester.pump();
 
     // Both transitions start to reverse.
-    expect(getBackgroundColor(tester, 0), const Color(0xcd007aff));
-    expect(getBackgroundColor(tester, 1), const Color(0xffc1deff));
+    expect(getBackgroundColor(tester, 0), isSameColorAs(const Color(0xcd007aff)));
+    expect(getBackgroundColor(tester, 1), isSameColorAs(const Color(0xffc1deff)));
 
     await tester.pump(const Duration(milliseconds: 40));
     // A and B finish transitioning.
-    expect(getBackgroundColor(tester, 0), CupertinoColors.activeBlue);
+    expect(getBackgroundColor(tester, 0), isSameColorAs(CupertinoColors.activeBlue));
     expect(getBackgroundColor(tester, 1), isSameColorAs(CupertinoColors.white));
   });
 
@@ -1407,14 +1422,14 @@ void main() {
     await tester.tap(find.text('B'));
 
     await tester.pump();
-    expect(getBackgroundColor(tester, 1), const Color(0x33007aff));
+    expect(getBackgroundColor(tester, 1), isSameColorAs(const Color(0x33007aff)));
     expect(getChildCount(tester), 2);
 
     await tester.pump(const Duration(milliseconds: 40));
-    expect(getBackgroundColor(tester, 1), const Color(0x64007aff));
+    expect(getBackgroundColor(tester, 1), isSameColorAs(const Color(0x64007aff)));
 
     await tester.pump(const Duration(milliseconds: 150));
-    expect(getBackgroundColor(tester, 1), CupertinoColors.activeBlue);
+    expect(getBackgroundColor(tester, 1), isSameColorAs(CupertinoColors.activeBlue));
   });
 
   testWidgets('Remove currently animating segment', (WidgetTester tester) async {
@@ -1456,11 +1471,11 @@ void main() {
     expect(getChildCount(tester), 2);
 
     await tester.pump(const Duration(milliseconds: 40));
-    expect(getBackgroundColor(tester, 0), const Color(0xff3d9aff));
+    expect(getBackgroundColor(tester, 0), isSameColorAs(const Color(0xff3d9aff)));
     expect(getBackgroundColor(tester, 1), isSameColorAs(CupertinoColors.white));
 
     await tester.pump(const Duration(milliseconds: 40));
-    expect(getBackgroundColor(tester, 0), const Color(0xff7bbaff));
+    expect(getBackgroundColor(tester, 0), isSameColorAs(const Color(0xff7bbaff)));
     expect(getBackgroundColor(tester, 1), isSameColorAs(CupertinoColors.white));
 
     await tester.pump(const Duration(milliseconds: 100));
@@ -1572,13 +1587,17 @@ void main() {
     );
 
     final Offset center = tester.getCenter(find.text('B'));
-    await tester.startGesture(center);
+    final TestGesture gesture = await tester.startGesture(center);
     await tester.pumpAndSettle();
 
     await expectLater(
       find.byType(RepaintBoundary),
       matchesGoldenFile('segmented_control_test.1.png'),
     );
+
+    // Finish gesture to release resources.
+    await gesture.up();
+    await tester.pumpAndSettle();
   });
 
   testWidgets('Hovering over Cupertino segmented control updates cursor to clickable on Web', (WidgetTester tester) async {
@@ -1620,6 +1639,125 @@ void main() {
     expect(
       RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(1),
       kIsWeb ? SystemMouseCursors.click : SystemMouseCursors.basic,
+    );
+  });
+
+  testWidgets('Tap on disabled segment should not change its state', (WidgetTester tester) async {
+    final Map<int, Widget> children = <int, Widget>{
+      0: const Text('Child 1'),
+      1: const Text('Child 2'),
+      2: const Text('Child 3'),
+    };
+
+    final Set<int> disabledChildren = <int>{1};
+
+    int sharedValue = 0;
+
+    await tester.pumpWidget(
+      StatefulBuilder(
+        builder: (BuildContext context, StateSetter setState) {
+          return boilerplate(
+            child: CupertinoSegmentedControl<int>(
+              key: const ValueKey<String>('Segmented Control'),
+              children: children,
+              disabledChildren: disabledChildren,
+              onValueChanged: (int newValue) {
+                setState(() {
+                  sharedValue = newValue;
+                });
+              },
+              groupValue: sharedValue,
+            ),
+          );
+        },
+      ),
+    );
+
+    expect(sharedValue, 0);
+
+    await tester.tap(find.text('Child 2'));
+    await tester.pumpAndSettle();
+
+    expect(sharedValue, 0);
+  });
+
+  testWidgets('Background color of disabled segment should be different than enabled segment', (WidgetTester tester) async {
+    final Map<int, Widget> children = <int, Widget>{
+      0: const Text('Child 1'),
+      1: const Text('Child 2'),
+    };
+    int sharedValue = 0;
+
+    await tester.pumpWidget(
+      StatefulBuilder(
+        builder: (BuildContext context, StateSetter setState) {
+          return boilerplate(
+            child: CupertinoSegmentedControl<int>(
+              children: children,
+              disabledChildren: const <int>{0},
+              onValueChanged: (int newValue) {
+                setState(() {
+                  sharedValue = newValue;
+                });
+              },
+              groupValue: sharedValue,
+            ),
+          );
+        },
+      ),
+    );
+
+    // Colors are different for disabled and enabled segments in initial state.
+    // By default, the first segment is selected (and also is disabled in this test),
+    // it should have a blue background (selected color) with 50% opacity
+    expect(
+      getBackgroundColor(tester, 0),
+      isSameColorAs(CupertinoColors.systemBlue.withOpacity(0.5)),
+    );
+    expect(getBackgroundColor(tester, 1), isSameColorAs(CupertinoColors.white));
+
+    // Tap on disabled segment should not change its color
+    await tester.tap(find.text('Child 1'));
+    await tester.pumpAndSettle();
+
+    expect(
+      getBackgroundColor(tester, 0),
+      isSameColorAs(CupertinoColors.systemBlue.withOpacity(0.5)),
+    );
+
+    // When tapping on another enabled segment, the first disabled segment is not selected anymore,
+    // it should have a white background (same to unselected color).
+    await tester.tap(find.text('Child 2'));
+    await tester.pumpAndSettle();
+
+    expect(getBackgroundColor(tester, 0), isSameColorAs(CupertinoColors.white));
+  });
+
+  testWidgets('Custom disabled color of disabled segment is showing as desired', (WidgetTester tester) async {
+    final Map<int, Widget> children = <int, Widget>{
+      0: const Text('Child 1'),
+      1: const Text('Child 2'),
+      2: const Text('Child 3'),
+    };
+
+    await tester.pumpWidget(
+      StatefulBuilder(
+        builder: (BuildContext context, StateSetter setState) {
+          return boilerplate(
+            child: CupertinoSegmentedControl<int>(
+              children: children,
+              disabledChildren: const <int>{0},
+              onValueChanged: (int newValue) {},
+              disabledColor: CupertinoColors.systemGrey2,
+            ),
+          );
+        },
+      ),
+    );
+
+    expect(
+      getBackgroundColor(tester, 0),
+      isSameColorAs(CupertinoColors.systemGrey2),
     );
   });
 }

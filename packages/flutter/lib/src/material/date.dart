@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+/// @docImport 'calendar_date_picker.dart';
+/// @docImport 'date_picker.dart';
+/// @docImport 'text_field.dart';
+library;
+
 import 'package:flutter/foundation.dart';
 
 import 'material_localizations.dart';
@@ -67,7 +72,7 @@ abstract final class DateUtils {
   ///
   /// `date` would be January 15, 2019.
   /// `futureDate` would be April 1, 2019 since it adds 3 months.
-  static  DateTime addMonthsToMonthDate(DateTime monthDate, int monthsToAdd) {
+  static DateTime addMonthsToMonthDate(DateTime monthDate, int monthsToAdd) {
     return DateTime(monthDate.year, monthDate.month + monthsToAdd);
   }
 
@@ -139,7 +144,7 @@ abstract final class DateUtils {
 /// Mode of date entry method for the date picker dialog.
 ///
 /// In [calendar] mode, a calendar grid is displayed and the user taps the
-/// day they wish to select. In [input] mode a TextField] is displayed and
+/// day they wish to select. In [input] mode, a [TextField] is displayed and
 /// the user types in the date they wish to select.
 ///
 /// [calendarOnly] and [inputOnly] are variants of the above that don't

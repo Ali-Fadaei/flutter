@@ -2,9 +2,14 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+/// @docImport 'drawer.dart';
+/// @docImport 'list_tile_theme.dart';
+library;
+
 import 'dart:developer' show Flow, Timeline;
 import 'dart:io' show Platform;
 
+import 'package:flutter/cupertino.dart' show CupertinoDialogAction;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart' hide Flow;
@@ -170,9 +175,9 @@ class AboutListTile extends StatelessWidget {
 /// The licenses shown on the [LicensePage] are those returned by the
 /// [LicenseRegistry] API, which can be used to add more licenses to the list.
 ///
-/// The [context], [useRootNavigator], [routeSettings] and [anchorPoint]
-/// arguments are passed to [showDialog], the documentation for which discusses
-/// how it is used.
+/// The [context], [barrierDismissible], [barrierColor], [barrierLabel],
+/// [useRootNavigator], [routeSettings] and [anchorPoint] arguments are
+/// passed to [showDialog], the documentation for which discusses how it is used.
 void showAboutDialog({
   required BuildContext context,
   String? applicationName,
@@ -180,15 +185,77 @@ void showAboutDialog({
   Widget? applicationIcon,
   String? applicationLegalese,
   List<Widget>? children,
+  bool barrierDismissible = true,
+  Color? barrierColor,
+  String? barrierLabel,
   bool useRootNavigator = true,
   RouteSettings? routeSettings,
   Offset? anchorPoint,
 }) {
   showDialog<void>(
     context: context,
+    barrierDismissible: barrierDismissible,
+    barrierColor: barrierColor,
+    barrierLabel: barrierLabel,
     useRootNavigator: useRootNavigator,
     builder: (BuildContext context) {
       return AboutDialog(
+        applicationName: applicationName,
+        applicationVersion: applicationVersion,
+        applicationIcon: applicationIcon,
+        applicationLegalese: applicationLegalese,
+        children: children,
+      );
+    },
+    routeSettings: routeSettings,
+    anchorPoint: anchorPoint,
+  );
+}
+
+/// Displays either a Material or Cupertino [AboutDialog] depending on platform,
+/// which describes the application and provides a button to show licenses
+/// for software used by the application.
+///
+/// The arguments correspond to the properties on [AboutDialog].
+///
+/// If the application has a [Drawer], consider using [AboutListTile] instead
+/// of calling this directly.
+///
+/// If you do not need an about box in your application, you should at least
+/// provide an affordance to call [showLicensePage].
+///
+/// The licenses shown on the [LicensePage] are those returned by the
+/// [LicenseRegistry] API, which can be used to add more licenses to the list.
+///
+/// On most platforms this function will act the same as [showDialog], except
+/// for iOS and macOS, in which case it will act the same as
+/// [showCupertinoDialog].
+///
+/// The [context], [barrierDismissible], [barrierColor], [barrierLabel],
+/// [useRootNavigator], [routeSettings] and [anchorPoint] arguments are
+/// passed to [showAdaptiveDialog], the documentation for which discusses how it is used.
+void showAdaptiveAboutDialog({
+  required BuildContext context,
+  String? applicationName,
+  String? applicationVersion,
+  Widget? applicationIcon,
+  String? applicationLegalese,
+  List<Widget>? children,
+  bool barrierDismissible = true,
+  Color? barrierColor,
+  String? barrierLabel,
+  bool useRootNavigator = true,
+  RouteSettings? routeSettings,
+  Offset? anchorPoint,
+}) {
+  showAdaptiveDialog<void>(
+    context: context,
+    barrierDismissible: barrierDismissible,
+    barrierColor: barrierColor,
+    barrierLabel: barrierLabel,
+    useRootNavigator: useRootNavigator,
+    builder: (BuildContext context) {
+      return AboutDialog.adaptive(
         applicationName: applicationName,
         applicationVersion: applicationVersion,
         applicationIcon: applicationIcon,
@@ -271,6 +338,28 @@ class AboutDialog extends StatelessWidget {
     this.applicationLegalese,
     this.children,
   });
+
+  /// Creates an adaptive [AboutDialog] based on whether the target platform is
+  /// iOS or macOS, following Material design's
+  /// [Cross-platform guidelines](https://material.io/design/platform-guidance/cross-platform-adaptation.html).
+  ///
+  /// Typically passed as a child of [showAdaptiveAboutDialog], which will display
+  /// the [AboutDialog] differently based on platform.
+  ///
+  ///  This constructor offers the same customization options as the default
+  /// [AboutDialog] constructor, allowing you to specify the application's
+  /// [applicationName], [applicationVersion], [applicationIcon],
+  /// [applicationLegalese], and additional [children] that appear in the dialog.
+  ///
+  /// The target platform is based on the current [Theme]: [ThemeData.platform].
+  const factory AboutDialog.adaptive({
+    Key? key,
+    String? applicationName,
+    String? applicationVersion,
+    Widget? applicationIcon,
+    String? applicationLegalese,
+    List<Widget>? children,
+  }) = _AdaptiveAboutDialog;
 
   /// The name of the application.
   ///
@@ -369,6 +458,119 @@ class AboutDialog extends StatelessWidget {
           },
         ),
       ],
+      scrollable: true,
+    );
+  }
+}
+
+class _AdaptiveAboutDialog extends AboutDialog {
+  const _AdaptiveAboutDialog({
+    super.key,
+    super.applicationName,
+    super.applicationVersion,
+    super.applicationIcon,
+    super.applicationLegalese,
+    super.children,
+  });
+
+  List<Widget>? _actions(BuildContext context) {
+    final ThemeData themeData = Theme.of(context);
+    final MaterialLocalizations localizations = MaterialLocalizations.of(context);
+
+    switch (themeData.platform) {
+      case TargetPlatform.iOS:
+      case TargetPlatform.macOS:
+        return <Widget>[
+          CupertinoDialogAction(
+            child: Text(themeData.useMaterial3
+              ? localizations.viewLicensesButtonLabel
+              : localizations.viewLicensesButtonLabel.toUpperCase()),
+            onPressed: () {
+              showLicensePage(
+                context: context,
+                applicationName: applicationName,
+                applicationVersion: applicationVersion,
+                applicationIcon: applicationIcon,
+                applicationLegalese: applicationLegalese,
+              );
+            },
+          ),
+          CupertinoDialogAction(
+            child: Text(themeData.useMaterial3
+              ? localizations.closeButtonLabel
+              : localizations.closeButtonLabel.toUpperCase()),
+            onPressed: () {
+              Navigator.pop(context);
+            },
+          ),
+        ];
+      case TargetPlatform.android:
+      case TargetPlatform.fuchsia:
+      case TargetPlatform.linux:
+      case TargetPlatform.windows:
+        return <Widget>[
+          TextButton(
+            child: Text(themeData.useMaterial3
+              ? localizations.viewLicensesButtonLabel
+              : localizations.viewLicensesButtonLabel.toUpperCase()),
+            onPressed: () {
+              showLicensePage(
+                context: context,
+                applicationName: applicationName,
+                applicationVersion: applicationVersion,
+                applicationIcon: applicationIcon,
+                applicationLegalese: applicationLegalese,
+              );
+            },
+          ),
+          TextButton(
+            child: Text(themeData.useMaterial3
+              ? localizations.closeButtonLabel
+              : localizations.closeButtonLabel.toUpperCase()),
+            onPressed: () {
+              Navigator.pop(context);
+            },
+          ),
+        ];
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+
+    final String name = applicationName ?? _defaultApplicationName(context);
+    final String version = applicationVersion ?? _defaultApplicationVersion(context);
+    final Widget? icon = applicationIcon ?? _defaultApplicationIcon(context);
+    final ThemeData themeData = Theme.of(context);
+    final List<Widget>? actions = _actions(context);
+
+    return AlertDialog.adaptive(
+      content: ListBody(
+        children: <Widget>[
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              if (icon != null) IconTheme(data: themeData.iconTheme, child: icon),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                  child: ListBody(
+                    children: <Widget>[
+                      Text(name, style: themeData.textTheme.headlineSmall),
+                      Text(version, style: themeData.textTheme.bodyMedium),
+                      const SizedBox(height: _textVerticalSeparation),
+                      Text(applicationLegalese ?? '', style: themeData.textTheme.bodySmall),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          ...?children,
+        ],
+      ),
+      actions: actions,
       scrollable: true,
     );
   }
@@ -584,8 +786,8 @@ class _PackagesViewState extends State<_PackagesView> {
                       child: Material(
                         color: Theme.of(context).cardColor,
                         elevation: 4.0,
-                        child: Container(
-                          constraints: BoxConstraints.loose(const Size.fromWidth(600.0)),
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 600.0),
                           child: _packagesList(context, selectedId, snapshot.data!, widget.isLateral),
                         ),
                       ),
@@ -881,8 +1083,8 @@ class _PackageLicensePageState extends State<_PackageLicensePage> {
           child: Material(
             color: theme.cardColor,
             elevation: 4.0,
-            child: Container(
-              constraints: BoxConstraints.loose(const Size.fromWidth(600.0)),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 600.0),
               child: Localizations.override(
                 locale: const Locale('en', 'US'),
                 context: context,
@@ -1006,7 +1208,7 @@ typedef _MasterViewBuilder = Widget Function(BuildContext context, bool isLatera
 /// sheet in the lateral UI. Otherwise, it is null.
 typedef _DetailPageBuilder = Widget Function(BuildContext context, Object? arguments, ScrollController? scrollController);
 
-/// Signature for the builder callback used by [_MasterDetailFlow.actionBuilder].
+/// Signature for the builder callback used by [_MasterDetailScaffold.actionBuilder].
 ///
 /// Builds the actions that go in the app bars constructed for the master and
 /// lateral UI pages. actionLevel indicates the intended destination of the
@@ -1037,7 +1239,6 @@ enum _Focus { master, detail }
 
 /// A Master Detail Flow widget. Depending on screen width it builds either a
 /// lateral or nested navigation flow between a master view and a detail page.
-/// bloc pattern.
 ///
 /// If focus is on detail view, then switching to nested navigation will
 /// populate the navigation history with the master page and the detail page on
@@ -1055,7 +1256,7 @@ class _MasterDetailFlow extends StatefulWidget {
 
   /// Builder for the master view for lateral navigation.
   ///
-  /// If [masterPageBuilder] is not supplied the master page required for nested navigation, also
+  /// This builder builds the master page required for nested navigation, also
   /// builds the master view inside a [Scaffold] with an [AppBar].
   final _MasterViewBuilder masterViewBuilder;
 
@@ -1146,10 +1347,11 @@ class _MasterDetailFlowState extends State<_MasterDetailFlow> implements _PageOp
   @override
   void openDetailPage(Object arguments) {
     _cachedDetailArguments = arguments;
-    if (_builtLayout == _LayoutMode.nested) {
-      _navigatorKey.currentState!.pushNamed(_navDetail, arguments: arguments);
-    } else {
-      focus = _Focus.detail;
+    switch (_builtLayout) {
+      case _LayoutMode.nested:
+        _navigatorKey.currentState!.pushNamed(_navDetail, arguments: arguments);
+      case _LayoutMode.lateral || null:
+        focus = _Focus.detail;
     }
   }
 
@@ -1173,22 +1375,18 @@ class _MasterDetailFlowState extends State<_MasterDetailFlow> implements _PageOp
     _builtLayout = _LayoutMode.nested;
     final MaterialPageRoute<void> masterPageRoute = _masterPageRoute(context);
 
-    return WillPopScope(
-      // Push pop check into nested navigator.
-      onWillPop: () async => !(await _navigatorKey.currentState!.maybePop()),
+    return NavigatorPopHandler(
+      onPop: () {
+        _navigatorKey.currentState!.maybePop();
+      },
       child: Navigator(
         key: _navigatorKey,
         initialRoute: 'initial',
         onGenerateInitialRoutes: (NavigatorState navigator, String initialRoute) {
-          switch (focus) {
-            case _Focus.master:
-              return <Route<void>>[masterPageRoute];
-            case _Focus.detail:
-              return <Route<void>>[
-                masterPageRoute,
-                _detailPageRoute(_cachedDetailArguments),
-              ];
-          }
+          return switch (focus) {
+            _Focus.master => <Route<void>>[masterPageRoute],
+            _Focus.detail => <Route<void>>[masterPageRoute, _detailPageRoute(_cachedDetailArguments)],
+          };
         },
         onGenerateRoute: (RouteSettings settings) {
           switch (settings.name) {
@@ -1227,13 +1425,11 @@ class _MasterDetailFlowState extends State<_MasterDetailFlow> implements _PageOp
   }
 
   MaterialPageRoute<void> _detailPageRoute(Object? arguments) {
-    return MaterialPageRoute<dynamic>(builder: (BuildContext context) {
-      return WillPopScope(
-        onWillPop: () async {
+    return MaterialPageRoute<void>(builder: (BuildContext context) {
+      return PopScope<void>(
+        onPopInvokedWithResult: (bool didPop, void result) {
           // No need for setState() as rebuild happens on navigation pop.
           focus = _Focus.master;
-          Navigator.of(context).pop();
-          return false;
         },
         child: BlockSemantics(child: widget.detailPageBuilder(context, arguments, null)),
       );
@@ -1360,17 +1556,19 @@ class _MasterDetailScaffoldState extends State<_MasterDetailScaffold>
               preferredSize: const Size.fromHeight(kToolbarHeight),
               child: Row(
                 children: <Widget>[
-                  ConstrainedBox(
-                    constraints: BoxConstraints.tightFor(width: masterViewWidth),
+                  SizedBox(
+                    width: masterViewWidth,
                     child: IconTheme(
                       data: Theme.of(context).primaryIconTheme,
-                      child: Container(
-                        alignment: AlignmentDirectional.centerEnd,
+                      child: Padding(
                         padding: const EdgeInsets.all(8),
-                        child: OverflowBar(
-                          spacing: 8,
-                          overflowAlignment: OverflowBarAlignment.end,
-                          children: widget.actionBuilder!(context, _ActionLevel.view),
+                        child: Align(
+                          alignment: AlignmentDirectional.centerEnd,
+                          child: OverflowBar(
+                            spacing: 8,
+                            overflowAlignment: OverflowBarAlignment.end,
+                            children: widget.actionBuilder!(context, _ActionLevel.view),
+                          ),
                         ),
                       ),
                     ),
@@ -1404,9 +1602,8 @@ class _MasterDetailScaffoldState extends State<_MasterDetailScaffold>
                       child,
                     ),
                   duration: const Duration(milliseconds: 500),
-                  child: Container(
+                  child: SizedBox.expand(
                     key: ValueKey<Object?>(value ?? widget.initialArguments),
-                    constraints: const BoxConstraints.expand(),
                     child: _DetailView(
                       builder: widget.detailPageBuilder,
                       arguments: value ?? widget.initialArguments,

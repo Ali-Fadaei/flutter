@@ -11,7 +11,6 @@ import '../artifacts.dart';
 import '../base/file_system.dart';
 import '../base/io.dart';
 import '../base/logger.dart';
-import '../base/os.dart';
 import '../build_info.dart';
 import '../bundle.dart';
 import '../bundle_builder.dart';
@@ -19,6 +18,8 @@ import '../desktop_device.dart';
 import '../devfs.dart';
 import '../device.dart';
 import '../device_port_forwarder.dart';
+import '../globals.dart' as globals;
+import '../native_assets.dart';
 import '../project.dart';
 import '../protocol_discovery.dart';
 import '../version.dart';
@@ -47,16 +48,16 @@ class FlutterTesterDevice extends Device {
   FlutterTesterDevice(super.id, {
     required ProcessManager processManager,
     required FlutterVersion flutterVersion,
-    required Logger logger,
+    required super.logger,
     required FileSystem fileSystem,
     required Artifacts artifacts,
-    required OperatingSystemUtils operatingSystemUtils,
+    TestCompilerNativeAssetsBuilder? nativeAssetsBuilder,
   }) : _processManager = processManager,
        _flutterVersion = flutterVersion,
        _logger = logger,
        _fileSystem = fileSystem,
-       _artifacts = artifacts,
-       _operatingSystemUtils = operatingSystemUtils,
+      _artifacts = artifacts,
+      _nativeAssetsBuilder = nativeAssetsBuilder,
        super(
         platformType: null,
         category: null,
@@ -68,7 +69,7 @@ class FlutterTesterDevice extends Device {
   final Logger _logger;
   final FileSystem _fileSystem;
   final Artifacts _artifacts;
-  final OperatingSystemUtils _operatingSystemUtils;
+  final TestCompilerNativeAssetsBuilder? _nativeAssetsBuilder;
 
   Process? _process;
   final DevicePortForwarder _portForwarder = const NoOpDevicePortForwarder();
@@ -93,6 +94,9 @@ class FlutterTesterDevice extends Device {
 
   @override
   bool supportsRuntimeMode(BuildMode buildMode) => buildMode == BuildMode.debug;
+
+  @override
+  bool get supportsFlavors => true;
 
   @override
   Future<TargetPlatform> get targetPlatform async => TargetPlatform.tester;
@@ -136,7 +140,6 @@ class FlutterTesterDevice extends Device {
     required DebuggingOptions debuggingOptions,
     Map<String, Object?> platformArgs = const <String, Object>{},
     bool prebuiltApplication = false,
-    bool ipv6 = false,
     String? userIdentifier,
   }) async {
     final BuildInfo buildInfo = debuggingOptions.buildInfo;
@@ -153,11 +156,13 @@ class FlutterTesterDevice extends Device {
     );
 
     // Build assets and perform initial compilation.
+    final FlutterProject project = FlutterProject.current();
     await BundleBuilder().build(
+      project: project,
       buildInfo: buildInfo,
       mainPath: mainPath,
       applicationKernelFilePath: applicationKernelFilePath,
-      platform: getTargetPlatformForName(getNameForHostPlatform(_operatingSystemUtils.hostPlatform)),
+      platform: TargetPlatform.tester,
       assetDirPath: assetDirectory.path,
     );
 
@@ -167,7 +172,7 @@ class FlutterTesterDevice extends Device {
       '--non-interactive',
       if (debuggingOptions.enableDartProfiling)
         '--enable-dart-profiling',
-      '--packages=${debuggingOptions.buildInfo.packagesPath}',
+      '--packages=${debuggingOptions.buildInfo.packageConfigPath}',
       '--flutter-assets-dir=${assetDirectory.path}',
       if (debuggingOptions.startPaused)
         '--start-paused',
@@ -184,6 +189,8 @@ class FlutterTesterDevice extends Device {
       _process = await _processManager.start(command,
         environment: <String, String>{
           'FLUTTER_TEST': 'true',
+          if (globals.platform.isWindows && _nativeAssetsBuilder != null)
+            'PATH': '${_nativeAssetsBuilder.windowsBuildDirectory(project)};${globals.platform.environment['PATH']}',
         },
       );
       if (!debuggingOptions.debuggingEnabled) {
@@ -194,7 +201,7 @@ class FlutterTesterDevice extends Device {
         getLogReader(),
         hostPort: debuggingOptions.hostVmServicePort,
         devicePort: debuggingOptions.deviceVmServicePort,
-        ipv6: ipv6,
+        ipv6: debuggingOptions.ipv6,
         logger: _logger,
       );
       _logReader.initializeProcess(_process!);
@@ -258,7 +265,7 @@ class FlutterTesterDevices extends PollingDeviceDiscovery {
     required ProcessManager processManager,
     required Logger logger,
     required FlutterVersion flutterVersion,
-    required OperatingSystemUtils operatingSystemUtils,
+    TestCompilerNativeAssetsBuilder? nativeAssetsBuilder,
   }) : _testerDevice = FlutterTesterDevice(
         kTesterDeviceId,
         fileSystem: fileSystem,
@@ -266,7 +273,7 @@ class FlutterTesterDevices extends PollingDeviceDiscovery {
         processManager: processManager,
         logger: logger,
         flutterVersion: flutterVersion,
-        operatingSystemUtils: operatingSystemUtils,
+        nativeAssetsBuilder: nativeAssetsBuilder,
       ),
        super('Flutter tester');
 

@@ -10,6 +10,7 @@ import 'dart:typed_data';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:vector_math/vector_math_64.dart' show Matrix3;
 
 /// Class that makes it easy to mock common toStringDeep behavior.
 class _MockToStringDeep {
@@ -193,6 +194,26 @@ void main() {
     );
   });
 
+  test('equalsIgnoringHashCodes - wrong line', () {
+    TestFailure? failure;
+    try {
+      expect(
+        '1\n2\n3\n4\n5\n6\n7\n8\n9\n10',
+        equalsIgnoringHashCodes('1\n2\n3\n4\n5\n6\na\n8\n9\n10'),
+      );
+    } on TestFailure catch (e) {
+      failure = e;
+    }
+
+    expect(failure, isNotNull);
+    if (failure != null) {
+      final String? message = failure.message;
+      expect(message, contains('Lines 7 differed'));
+      expect(message, contains("'a'"));
+      expect(message, contains("'7'"));
+    }
+  });
+
   test('moreOrLessEquals', () {
     expect(0.0, moreOrLessEquals(1e-11));
     expect(1e-11, moreOrLessEquals(0.0));
@@ -251,6 +272,35 @@ void main() {
     );
   });
 
+  test('matrix3MoreOrLessEquals', () {
+    expect(
+      Matrix3.rotationZ(math.pi),
+      matrix3MoreOrLessEquals(Matrix3.fromList(<double>[
+       -1,  0, 0,
+        0, -1, 0,
+        0,  0, 1,
+      ]))
+    );
+
+    expect(
+      Matrix3.rotationZ(math.pi),
+      matrix3MoreOrLessEquals(Matrix3.fromList(<double>[
+       -2,  0, 0,
+        0, -2, 0,
+        0,  0, 1,
+      ]), epsilon: 2)
+    );
+
+    expect(
+      Matrix3.rotationZ(math.pi),
+      isNot(matrix3MoreOrLessEquals(Matrix3.fromList(<double>[
+       -2,  0, 0,
+        0, -2, 0,
+        0,  0, 1,
+      ])))
+    );
+  });
+
   test('rectMoreOrLessEquals', () {
     expect(
       const Rect.fromLTRB(0.0, 0.0, 10.0, 10.0),
@@ -302,6 +352,25 @@ void main() {
     );
   });
 
+  test('isSameColorSwatchAs', () {
+    expect(
+      const ColorSwatch<String>(0xaaaaaaaa,
+          <String, Color>{'foo': Color(0xaaaaaaaa), 'bar': Color(0xbbbbbbbb)}),
+      isSameColorSwatchAs(const ColorSwatch<String>(0xaaaaaaaa,
+          <String, Color>{'foo': Color(0xaaaaaaaa), 'bar': Color(0xbbbbbbbb)})),
+    );
+
+    expect(
+      const ColorSwatch<String>(0xaaaaaaaa,
+          <String, Color>{'foo': Color(0xaaaaaaaa), 'bar': Color(0xbbbbbbbb)}),
+      isNot(isSameColorSwatchAs(const ColorSwatch<String>(
+          0xaaaaaaaa, <String, Color>{
+        'foo': Color(0xaaaaaaaa),
+        'bar': Color(0xcccccccc)
+      }))),
+    );
+  });
+
   test('isSameColorAs', () {
     expect(
       const Color(0x87654321),
@@ -326,6 +395,16 @@ void main() {
     expect(
       const _CustomColor(0xFF123456),
       isSameColorAs(const _CustomColor(0xFF123456, isEqual: false)),
+    );
+
+    expect(
+      const Color(0x00000000),
+      isNot(isSameColorAs(const Color(0x00000002))),
+    );
+
+    expect(
+      const Color(0x00000000),
+      isSameColorAs(const Color(0x00000002), threshold: 0.008),
     );
   });
 
@@ -436,6 +515,14 @@ void main() {
 
       testWidgets('future list of integers', (WidgetTester tester) async {
         await expectLater(Future<List<int>>.value(<int>[1, 2]), matchesGoldenFile('foo.png'));
+        expect(comparator.invocation, _ComparatorInvocation.compare);
+        expect(comparator.imageBytes, equals(<int>[1, 2]));
+        expect(comparator.golden, Uri.parse('foo.png'));
+      });
+
+      testWidgets('future nullable list of integers',
+          (WidgetTester tester) async {
+        await expectLater(Future<List<int>?>.value(<int>[1, 2]), matchesGoldenFile('foo.png'));
         expect(comparator.invocation, _ComparatorInvocation.compare);
         expect(comparator.imageBytes, equals(<int>[1, 2]));
         expect(comparator.golden, Uri.parse('foo.png'));
@@ -625,6 +712,7 @@ void main() {
       final SemanticsData data = SemanticsData(
         flags: flags,
         actions: actions,
+        identifier: 'i',
         attributedLabel: AttributedString('a'),
         attributedIncreasedValue: AttributedString('b'),
         attributedValue: AttributedString('c'),
@@ -645,6 +733,8 @@ void main() {
         customSemanticsActionIds: <int>[CustomSemanticsAction.getIdentifier(action)],
         currentValueLength: 10,
         maxValueLength: 15,
+        headingLevel: 0,
+        linkUrl: Uri(path: 'l'),
       );
       final _FakeSemanticsNode node = _FakeSemanticsNode(data);
 
@@ -683,6 +773,8 @@ void main() {
          hasToggledState: true,
          isToggled: true,
          hasImplicitScrolling: true,
+         hasExpandedState: true,
+         isExpanded: true,
          /* Actions */
          hasTapAction: true,
          hasLongPressAction: true,
@@ -705,6 +797,7 @@ void main() {
          hasDidGainAccessibilityFocusAction: true,
          hasDidLoseAccessibilityFocusAction: true,
          hasDismissAction: true,
+         hasFocusAction: true,
          customActions: <CustomSemanticsAction>[action],
       ));
     });
@@ -750,6 +843,7 @@ void main() {
         link: true,
         onTap: () { },
         onLongPress: () { },
+        identifier: 'ident',
         label: 'foo',
         hint: 'bar',
         value: 'baz',
@@ -907,6 +1001,7 @@ void main() {
       final SemanticsData data = SemanticsData(
         flags: flags,
         actions: actions,
+        identifier: 'i',
         attributedLabel: AttributedString('a'),
         attributedIncreasedValue: AttributedString('b'),
         attributedValue: AttributedString('c'),
@@ -927,6 +1022,8 @@ void main() {
         customSemanticsActionIds: <int>[CustomSemanticsAction.getIdentifier(action)],
         currentValueLength: 10,
         maxValueLength: 15,
+        headingLevel: 0,
+        linkUrl: Uri(path: 'l'),
       );
       final _FakeSemanticsNode node = _FakeSemanticsNode(data);
 
@@ -966,6 +1063,8 @@ void main() {
           hasToggledState: true,
           isToggled: true,
           hasImplicitScrolling: true,
+          hasExpandedState: true,
+          isExpanded: true,
           /* Actions */
           hasTapAction: true,
           hasLongPressAction: true,
@@ -988,6 +1087,7 @@ void main() {
           hasDidGainAccessibilityFocusAction: true,
           hasDidLoseAccessibilityFocusAction: true,
           hasDismissAction: true,
+          hasFocusAction: true,
           customActions: <CustomSemanticsAction>[action],
         ),
       );
@@ -997,6 +1097,7 @@ void main() {
       final SemanticsData data = SemanticsData(
         flags: 0,
         actions: 0,
+        identifier: 'i',
         attributedLabel: AttributedString('a'),
         attributedIncreasedValue: AttributedString('b'),
         attributedValue: AttributedString('c'),
@@ -1016,6 +1117,8 @@ void main() {
         platformViewId: 105,
         currentValueLength: 10,
         maxValueLength: 15,
+        headingLevel: 0,
+        linkUrl: null,
       );
       final _FakeSemanticsNode node = _FakeSemanticsNode(data);
 
@@ -1055,6 +1158,8 @@ void main() {
           hasToggledState: false,
           isToggled: false,
           hasImplicitScrolling: false,
+          hasExpandedState: false,
+          isExpanded: false,
           /* Actions */
           hasTapAction: false,
           hasLongPressAction: false,
@@ -1077,6 +1182,7 @@ void main() {
           hasDidGainAccessibilityFocusAction: false,
           hasDidLoseAccessibilityFocusAction: false,
           hasDismissAction: false,
+          hasFocusAction: false,
         ),
       );
     });
@@ -1093,6 +1199,7 @@ void main() {
       final SemanticsData emptyData = SemanticsData(
         flags: 0,
         actions: 0,
+        identifier: 'i',
         attributedLabel: AttributedString('a'),
         attributedIncreasedValue: AttributedString('b'),
         attributedValue: AttributedString('c'),
@@ -1112,6 +1219,8 @@ void main() {
         platformViewId: 105,
         currentValueLength: 10,
         maxValueLength: 15,
+        headingLevel: 0,
+        linkUrl: null,
       );
       final _FakeSemanticsNode emptyNode = _FakeSemanticsNode(emptyData);
 
@@ -1119,6 +1228,7 @@ void main() {
       final SemanticsData fullData = SemanticsData(
         flags: allFlags,
         actions: allActions,
+        identifier: 'i',
         attributedLabel: AttributedString('a'),
         attributedIncreasedValue: AttributedString('b'),
         attributedValue: AttributedString('c'),
@@ -1139,6 +1249,8 @@ void main() {
         currentValueLength: 10,
         maxValueLength: 15,
         customSemanticsActionIds: <int>[CustomSemanticsAction.getIdentifier(action)],
+        headingLevel: 0,
+        linkUrl: Uri(path: 'l'),
       );
       final _FakeSemanticsNode fullNode = _FakeSemanticsNode(fullData);
 
@@ -1208,6 +1320,7 @@ void main() {
       final SemanticsData data = SemanticsData(
         flags: 0,
         actions: SemanticsAction.customAction.index,
+        identifier: 'i',
         attributedLabel: AttributedString('a'),
         attributedIncreasedValue: AttributedString('b'),
         attributedValue: AttributedString('c'),
@@ -1228,6 +1341,8 @@ void main() {
         currentValueLength: 10,
         maxValueLength: 15,
         customSemanticsActionIds: <int>[CustomSemanticsAction.getIdentifier(action)],
+        headingLevel: 0,
+        linkUrl: null,
       );
       final _FakeSemanticsNode node = _FakeSemanticsNode(data);
 
@@ -1322,6 +1437,72 @@ void main() {
       )));
 
       expect(find.byType(Text), isNot(findsAtLeastNWidgets(3)));
+    });
+  });
+
+  group('findsOneWidget', () {
+    testWidgets('finds exactly one widget', (WidgetTester tester) async {
+      await tester.pumpWidget(const Text('foo', textDirection: TextDirection.ltr));
+      expect(find.text('foo'), findsOneWidget);
+    });
+
+    testWidgets('fails with a descriptive message', (WidgetTester tester) async {
+      late TestFailure failure;
+      try {
+        expect(find.text('foo', skipOffstage: false), findsOneWidget);
+      } on TestFailure catch (e) {
+        failure = e;
+      }
+
+      expect(failure, isNotNull);
+      final String? message = failure.message;
+      expect(message, contains('Expected: exactly one matching candidate\n'));
+      expect(message, contains('Actual: _TextWidgetFinder:<Found 0 widgets with text "foo"'));
+      expect(message, contains('Which: means none were found but one was expected\n'));
+    });
+  });
+
+  group('findsNothing', () {
+    testWidgets('finds no widgets', (WidgetTester tester) async {
+      expect(find.text('foo'), findsNothing);
+    });
+
+    testWidgets('fails with a descriptive message', (WidgetTester tester) async {
+      await tester.pumpWidget(const Text('foo', textDirection: TextDirection.ltr));
+
+      late TestFailure failure;
+      try {
+        expect(find.text('foo', skipOffstage: false), findsNothing);
+      } on TestFailure catch (e) {
+        failure = e;
+      }
+
+      expect(failure, isNotNull);
+      final String? message = failure.message;
+
+      expect(message, contains('Expected: no matching candidates\n'));
+      expect(message, contains('Actual: _TextWidgetFinder:<Found 1 widget with text "foo"'));
+      expect(message, contains('Text("foo", textDirection: ltr, dependencies: [MediaQuery])'));
+      expect(message, contains('Which: means one was found but none were expected\n'));
+    });
+
+    testWidgets('fails with a descriptive message when skipping', (WidgetTester tester) async {
+      await tester.pumpWidget(const Text('foo', textDirection: TextDirection.ltr));
+
+      late TestFailure failure;
+      try {
+        expect(find.text('foo'), findsNothing);
+      } on TestFailure catch (e) {
+        failure = e;
+      }
+
+      expect(failure, isNotNull);
+      final String? message = failure.message;
+
+      expect(message, contains('Expected: no matching candidates\n'));
+      expect(message, contains('Actual: _TextWidgetFinder:<Found 1 widget with text "foo"'));
+      expect(message, contains('Text("foo", textDirection: ltr, dependencies: [MediaQuery])'));
+      expect(message, contains('Which: means one was found but none were expected\n'));
     });
   });
 }

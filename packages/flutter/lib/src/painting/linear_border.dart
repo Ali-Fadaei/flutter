@@ -2,6 +2,9 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+/// @docImport 'package:flutter/material.dart';
+library;
+
 import 'dart:ui' show lerpDouble;
 
 import 'package:flutter/foundation.dart';
@@ -10,7 +13,7 @@ import 'basic_types.dart';
 import 'borders.dart';
 import 'edge_insets.dart';
 
-/// Defines the relative size and alignment of one <LinearBorder> edge.
+/// Defines the relative size and alignment of one [LinearBorder] edge.
 ///
 /// A [LinearBorder] defines a box outline as zero to four edges, each
 /// of which is rendered as a single line. The width and color of the
@@ -132,6 +135,12 @@ class LinearBorderEdge {
 ///
 /// Convenience constructors are included for the common case where just one edge is specified:
 /// [LinearBorder.start], [LinearBorder.end], [LinearBorder.top], [LinearBorder.bottom].
+///
+/// {@tool dartpad}
+/// This example shows how to draw different kinds of [LinearBorder]s.
+///
+/// ** See code in examples/api/lib/painting/linear_border/linear_border.0.dart **
+/// {@end-tool}
 class LinearBorder extends OutlinedBorder {
   /// Creates a rectangular box border that's rendered as zero to four lines.
   const LinearBorder({

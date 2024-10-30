@@ -2,10 +2,14 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+/// @docImport 'divider_theme.dart';
+library;
+
 import 'package:flutter/widgets.dart';
 
 import 'constants.dart';
 import 'expand_icon.dart';
+import 'icon_button.dart';
 import 'ink_well.dart';
 import 'material_localizations.dart';
 import 'mergeable_material.dart';
@@ -74,14 +78,14 @@ typedef ExpansionPanelHeaderBuilder = Widget Function(BuildContext context, bool
 class ExpansionPanel {
   /// Creates an expansion panel to be used as a child for [ExpansionPanelList].
   /// See [ExpansionPanelList] for an example on how to use this widget.
-  ///
-  /// The [headerBuilder], [body], and [isExpanded] arguments must not be null.
   ExpansionPanel({
     required this.headerBuilder,
     required this.body,
     this.isExpanded = false,
     this.canTapOnHeader = false,
     this.backgroundColor,
+    this.splashColor,
+    this.highlightColor,
   });
 
   /// The widget builder that builds the expansion panels' header.
@@ -96,6 +100,28 @@ class ExpansionPanel {
   ///
   /// Defaults to false.
   final bool isExpanded;
+
+  /// Defines the splash color of the panel if [canTapOnHeader] is true,
+  /// or the splash color of the expand/collapse IconButton if [canTapOnHeader]
+  /// is false.
+  ///
+  /// If [canTapOnHeader] is false, and [ThemeData.useMaterial3] is
+  /// true, this field will be ignored, as [IconButton.splashColor]
+  /// will be ignored, and you should use [highlightColor] instead.
+  ///
+  /// If this is null, then the icon button will use its default splash color
+  /// [ThemeData.splashColor], and the panel will use its default splash color
+  /// [ThemeData.splashColor] (if [canTapOnHeader] is true).
+  final Color? splashColor;
+
+  /// Defines the highlight color of the panel if [canTapOnHeader] is true, or
+  /// the highlight color of the expand/collapse IconButton if [canTapOnHeader]
+  /// is false.
+  ///
+  /// If this is null, then the icon button will use its default highlight color
+  /// [ThemeData.highlightColor], and the panel will use its default highlight
+  /// color [ThemeData.highlightColor] (if [canTapOnHeader] is true).
+  final Color? highlightColor;
 
   /// Whether tapping on the panel's header will expand/collapse it.
   ///
@@ -120,14 +146,15 @@ class ExpansionPanel {
 class ExpansionPanelRadio extends ExpansionPanel {
   /// An expansion panel that allows for radio functionality.
   ///
-  /// A unique [value] must be passed into the constructor. The
-  /// [headerBuilder], [body], [value] must not be null.
+  /// A unique [value] must be passed into the constructor.
   ExpansionPanelRadio({
     required this.value,
     required super.headerBuilder,
     required super.body,
     super.canTapOnHeader,
     super.backgroundColor,
+    super.splashColor,
+    super.highlightColor,
   });
 
   /// The value that uniquely identifies a radio panel so that the currently
@@ -160,8 +187,6 @@ class ExpansionPanelRadio extends ExpansionPanel {
 class ExpansionPanelList extends StatefulWidget {
   /// Creates an expansion panel list widget. The [expansionCallback] is
   /// triggered when an expansion panel expand/collapse button is pushed.
-  ///
-  /// The [children] and [animationDuration] arguments must not be null.
   const ExpansionPanelList({
     super.key,
     this.children = const <ExpansionPanel>[],
@@ -177,10 +202,9 @@ class ExpansionPanelList extends StatefulWidget {
 
   /// Creates a radio expansion panel list widget.
   ///
-  /// This widget allows for at most one panel in the list to be open.
-  /// The expansion panel callback is triggered when an expansion panel
-  /// expand/collapse button is pushed. The [children] and [animationDuration]
-  /// arguments must not be null. The [children] objects must be instances
+  /// This widget allows for at most one panel in the list to be open. The
+  /// expansion panel callback is triggered when an expansion panel
+  /// expand/collapse button is pushed. The [children] objects must be instances
   /// of [ExpansionPanelRadio].
   ///
   /// {@tool dartpad}
@@ -313,9 +337,7 @@ class _ExpansionPanelListState extends State<ExpansionPanelList> {
     return widget.children[index].isExpanded;
   }
 
-  void _handlePressed(bool isExpanded, int index) {
-    widget.expansionCallback?.call(index, isExpanded);
-
+ void _handlePressed(bool isExpanded, int index) {
     if (widget._allowOnlyOnePanelOpen) {
       final ExpansionPanelRadio pressedChild = widget.children[index] as ExpansionPanelRadio;
 
@@ -334,6 +356,8 @@ class _ExpansionPanelListState extends State<ExpansionPanelList> {
         _currentOpenPanel = isExpanded ? null : pressedChild;
       });
     }
+    // !isExpanded is passed because, when _handlePressed, the state of the panel to expand is not yet expanded.
+    widget.expansionCallback?.call(index, !isExpanded);
   }
 
   ExpansionPanelRadio? searchPanelByValue(List<ExpansionPanelRadio> panels, Object? value)  {
@@ -365,23 +389,27 @@ class _ExpansionPanelListState extends State<ExpansionPanelList> {
         _isChildExpanded(index),
       );
 
-      Widget expandIconContainer = Container(
-        margin: const EdgeInsetsDirectional.only(end: 8.0),
+      Widget expandIconPadded = Padding(
+        padding: const EdgeInsetsDirectional.only(end: 8.0),
         child: ExpandIcon(
           color: widget.expandIconColor,
+          disabledColor: child.canTapOnHeader ? widget.expandIconColor : null,
           isExpanded: _isChildExpanded(index),
           padding: _kExpandIconPadding,
+          splashColor: child.splashColor,
+          highlightColor: child.highlightColor,
           onPressed: !child.canTapOnHeader
               ? (bool isExpanded) => _handlePressed(isExpanded, index)
               : null,
         ),
       );
+
       if (!child.canTapOnHeader) {
         final MaterialLocalizations localizations = MaterialLocalizations.of(context);
-        expandIconContainer = Semantics(
+        expandIconPadded = Semantics(
           label: _isChildExpanded(index)? localizations.expandedIconTapHint : localizations.collapsedIconTapHint,
           container: true,
-          child: expandIconContainer,
+          child: expandIconPadded,
         );
       }
       Widget header = Row(
@@ -397,12 +425,14 @@ class _ExpansionPanelListState extends State<ExpansionPanelList> {
               ),
             ),
           ),
-          expandIconContainer,
+          expandIconPadded,
         ],
       );
       if (child.canTapOnHeader) {
         header = MergeSemantics(
           child: InkWell(
+            splashColor: child.splashColor,
+            highlightColor: child.highlightColor,
             onTap: () => _handlePressed(_isChildExpanded(index), index),
             child: header,
           ),
@@ -416,7 +446,7 @@ class _ExpansionPanelListState extends State<ExpansionPanelList> {
             children: <Widget>[
               header,
               AnimatedCrossFade(
-                firstChild: Container(height: 0.0),
+                firstChild: const LimitedBox(maxWidth: 0.0, child: SizedBox(width: double.infinity, height: 0)),
                 secondChild: child.body,
                 firstCurve: const Interval(0.0, 0.6, curve: Curves.fastOutSlowIn),
                 secondCurve: const Interval(0.4, 1.0, curve: Curves.fastOutSlowIn),

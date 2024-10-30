@@ -83,6 +83,7 @@ void main() {
     File? desiredArtifact;
     File? entitlementsFile;
     File? nestedWithoutEntitlementsFile;
+    File? unsignedBinariesFile;
     operatingSystemUtils.unzipCallbacks[localZipPath] = (Directory outputDirectory) {
       desiredArtifact = outputDirectory.childFile('artifact.bin')..createSync();
       entitlementsFile = outputDirectory.childFile('entitlements.txt')..createSync();
@@ -90,6 +91,7 @@ void main() {
           .childDirectory('dir')
           .childFile('without_entitlements.txt')
           ..createSync(recursive: true);
+      unsignedBinariesFile = outputDirectory.childFile('unsigned_binaries.txt')..createSync();
     };
     final ArtifactUpdater artifactUpdater = ArtifactUpdater(
       fileSystem: fileSystem,
@@ -114,6 +116,7 @@ void main() {
     expect(desiredArtifact, exists);
     expect(entitlementsFile, isNot(exists));
     expect(nestedWithoutEntitlementsFile, isNot(exists));
+    expect(unsignedBinariesFile, isNot(exists));
     expect(staleEntitlementsFile, isNot(exists));
   });
 
@@ -371,7 +374,7 @@ void main() {
   });
 
   testWithoutContext('ArtifactUpdater will de-download a file if unzipping fails on windows', () async {
-    final FakeOperatingSystemUtils operatingSystemUtils = FakeOperatingSystemUtils(windows: true);
+    final FakeOperatingSystemUtils operatingSystemUtils = FakeOperatingSystemUtils();
     final MemoryFileSystem fileSystem = MemoryFileSystem.test();
     final BufferLogger logger = BufferLogger.test();
     final ArtifactUpdater artifactUpdater = ArtifactUpdater(
@@ -421,7 +424,7 @@ void main() {
   });
 
   testWithoutContext('ArtifactUpdater will bail if unzipping fails more than twice on Windows', () async {
-    final FakeOperatingSystemUtils operatingSystemUtils = FakeOperatingSystemUtils(windows: true);
+    final FakeOperatingSystemUtils operatingSystemUtils = FakeOperatingSystemUtils();
     final MemoryFileSystem fileSystem = MemoryFileSystem.test();
     final BufferLogger logger = BufferLogger.test();
     final ArtifactUpdater artifactUpdater = ArtifactUpdater(
@@ -529,10 +532,7 @@ void main() {
 }
 
 class FakeOperatingSystemUtils extends Fake implements OperatingSystemUtils {
-  FakeOperatingSystemUtils({this.windows = false});
-
   int failures = 0;
-  final bool windows;
 
   /// A mapping of zip [file] paths to callbacks that receive the [targetDirectory].
   ///

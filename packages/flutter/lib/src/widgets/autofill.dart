@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+/// @docImport 'editable_text.dart';
+/// @docImport 'form.dart';
+/// @docImport 'scrollable.dart';
+library;
+
 import 'package:flutter/services.dart';
 import 'framework.dart';
 
@@ -26,7 +31,7 @@ enum AutofillContextAction {
 /// An [AutofillScope] widget that groups [AutofillClient]s together.
 ///
 /// [AutofillClient]s that share the same closest [AutofillGroup] ancestor must
-/// be built together, and they be will be autofilled together.
+/// be built together, and they will be autofilled together.
 ///
 /// {@macro flutter.services.AutofillScope}
 ///
@@ -64,8 +69,6 @@ enum AutofillContextAction {
 ///   clean up actions to be run when a topmost [AutofillGroup] is disposed.
 class AutofillGroup extends StatefulWidget {
   /// Creates a scope for autofillable input fields.
-  ///
-  /// The [child] argument must not be null.
   const AutofillGroup({
     super.key,
     required this.child,

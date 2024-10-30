@@ -2,6 +2,9 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+/// @docImport 'package:flutter/widgets.dart';
+library;
+
 import 'package:meta/meta.dart';
 
 import 'basic_types.dart';
@@ -48,8 +51,7 @@ typedef StackTraceDemangler = StackTrace Function(StackTrace details);
 ///  * [RepetitiveStackFrameFilter], which uses this class to compare against [StackFrame]s.
 @immutable
 class PartialStackFrame {
-  /// Creates a new [PartialStackFrame] instance. All arguments are required and
-  /// must not be null.
+  /// Creates a new [PartialStackFrame] instance.
   const PartialStackFrame({
     required this.package,
     required this.className,
@@ -397,9 +399,6 @@ class FlutterErrorDetails with Diagnosticable {
   ///
   /// The framework calls this constructor when catching an exception that will
   /// subsequently be reported using [FlutterError.onError].
-  ///
-  /// The [exception] must not be null; other arguments can be left to
-  /// their default values.
   const FlutterErrorDetails({
     required this.exception,
     this.stack,
@@ -677,16 +676,12 @@ class FlutterErrorDetails with Diagnosticable {
     if (exception is num) {
       properties.add(ErrorDescription('The number $exception was $verb.'));
     } else {
-      final DiagnosticsNode errorName;
-      if (exception is AssertionError) {
-        errorName = ErrorDescription('assertion');
-      } else if (exception is String) {
-        errorName = ErrorDescription('message');
-      } else if (exception is Error || exception is Exception) {
-        errorName = ErrorDescription('${exception.runtimeType}');
-      } else {
-        errorName = ErrorDescription('${exception.runtimeType} object');
-      }
+      final DiagnosticsNode errorName = ErrorDescription(switch (exception) {
+        AssertionError()       => 'assertion',
+        String()               => 'message',
+        Error() || Exception() => '${exception.runtimeType}',
+        _                      => '${exception.runtimeType} object',
+      });
       properties.add(ErrorDescription('The following $errorName was $verb:'));
       if (diagnosticable != null) {
         diagnosticable.debugFillProperties(properties);
@@ -762,7 +757,7 @@ class FlutterErrorDetails with Diagnosticable {
 ///
 /// See also:
 ///
-///  * <https://flutter.dev/docs/testing/errors>, more information about error
+///  * <https://docs.flutter.dev/testing/errors>, more information about error
 ///    handling in Flutter.
 class FlutterError extends Error with DiagnosticableTreeMixin implements AssertionError {
   /// Create an error message from a string.
@@ -929,7 +924,7 @@ class FlutterError extends Error with DiagnosticableTreeMixin implements Asserti
   ///
   /// See also:
   ///
-  ///  * <https://flutter.dev/docs/testing/errors>, more information about error
+  ///  * <https://docs.flutter.dev/testing/errors>, more information about error
   ///    handling in Flutter.
   static FlutterExceptionHandler? onError = presentError;
 
@@ -1117,7 +1112,7 @@ class FlutterError extends Error with DiagnosticableTreeMixin implements Asserti
 
     // Only include packages we actually elided from.
     final List<String> where = <String>[
-      for (MapEntry<String, int> entry in removedPackagesAndClasses.entries)
+      for (final MapEntry<String, int> entry in removedPackagesAndClasses.entries)
         if (entry.value > 0)
           entry.key,
     ]..sort();

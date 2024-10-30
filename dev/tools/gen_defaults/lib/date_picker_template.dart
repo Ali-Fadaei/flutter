@@ -11,10 +11,10 @@ class DatePickerTemplate extends TokenTemplate {
   });
 
   String _layerOpacity(String layerToken) {
-    if (tokens.containsKey(layerToken)) {
-      final String? layerValue = tokens[layerToken] as String?;
-      if (tokens.containsKey(layerValue)) {
-        final String? opacityValue = opacity(layerValue!);
+    if (tokenAvailable(layerToken)) {
+      final String layerValue = getToken(layerToken) as String;
+      if (tokenAvailable(layerValue)) {
+        final String? opacityValue = opacity(layerValue);
         if (opacityValue != null) {
           return '.withOpacity($opacityValue)';
         }
@@ -44,6 +44,9 @@ class _${blockName}DefaultsM3 extends DatePickerThemeData {
     : super(
         elevation: ${elevation("md.comp.date-picker.modal.container")},
         shape: ${shape("md.comp.date-picker.modal.container")},
+        // TODO(tahatesser): Update this to use token when gen_defaults
+        // supports `CircleBorder` for fully rounded corners.
+        dayShape: const MaterialStatePropertyAll<OutlinedBorder>(CircleBorder()),
         rangePickerElevation: ${elevation("md.comp.date-picker.modal.range-selection.container")},
         rangePickerShape: ${shape("md.comp.date-picker.modal.range-selection.container")},
       );
@@ -55,6 +58,16 @@ class _${blockName}DefaultsM3 extends DatePickerThemeData {
 
   @override
   Color? get backgroundColor => ${componentColor("md.comp.date-picker.modal.container")};
+
+  @override
+  ButtonStyle get cancelButtonStyle {
+    return TextButton.styleFrom();
+  }
+
+  @override
+  ButtonStyle get confirmButtonStyle {
+    return TextButton.styleFrom();
+  }
 
   @override
   Color? get shadowColor => ${colorOrTransparent("md.comp.date-picker.modal.container.shadow-color")};
@@ -231,8 +244,6 @@ class _${blockName}DefaultsM3 extends DatePickerThemeData {
 
   @override
   TextStyle? get rangePickerHeaderHelpStyle => ${textStyle("md.comp.date-picker.modal.range-selection.month.subhead")};
-
-
 }
 ''';
 }

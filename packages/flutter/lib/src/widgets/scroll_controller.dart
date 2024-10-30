@@ -2,6 +2,20 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+/// @docImport 'package:flutter/material.dart';
+/// @docImport 'package:flutter_test/flutter_test.dart';
+///
+/// @docImport 'framework.dart';
+/// @docImport 'notification_listener.dart';
+/// @docImport 'page_storage.dart';
+/// @docImport 'page_view.dart';
+/// @docImport 'scroll_configuration.dart';
+/// @docImport 'scroll_metrics.dart';
+/// @docImport 'scroll_notification.dart';
+/// @docImport 'scroll_view.dart';
+/// @docImport 'scrollable.dart';
+library;
+
 import 'package:flutter/animation.dart';
 import 'package:flutter/foundation.dart';
 
@@ -57,15 +71,17 @@ typedef ScrollControllerCallback = void Function(ScrollPosition position);
 ///    listen to scrolling occur without using a [ScrollController].
 class ScrollController extends ChangeNotifier {
   /// Creates a controller for a scrollable widget.
-  ///
-  /// The values of `initialScrollOffset` and `keepScrollOffset` must not be null.
   ScrollController({
     double initialScrollOffset = 0.0,
     this.keepScrollOffset = true,
     this.debugLabel,
     this.onAttach,
     this.onDetach,
-  }) : _initialScrollOffset = initialScrollOffset;
+  }) : _initialScrollOffset = initialScrollOffset {
+    if (kFlutterMemoryAllocationsEnabled) {
+      ChangeNotifier.maybeDispatchObjectCreation(this);
+    }
+  }
 
   /// The initial value to use for [offset].
   ///
@@ -229,9 +245,7 @@ class ScrollController extends ChangeNotifier {
     assert(!_positions.contains(position));
     _positions.add(position);
     position.addListener(notifyListeners);
-    if (onAttach != null) {
-      onAttach!(position);
-    }
+    onAttach?.call(position);
   }
 
   /// Unregister the given position with this controller.
@@ -240,9 +254,7 @@ class ScrollController extends ChangeNotifier {
   /// controller will not manipulate the given position.
   void detach(ScrollPosition position) {
     assert(_positions.contains(position));
-    if (onDetach != null) {
-      onDetach!(position);
-    }
+    onDetach?.call(position);
     position.removeListener(notifyListeners);
     _positions.remove(position);
   }
@@ -378,6 +390,8 @@ class TrackingScrollController extends ScrollController {
     super.initialScrollOffset,
     super.keepScrollOffset,
     super.debugLabel,
+    super.onAttach,
+    super.onDetach,
   });
 
   final Map<ScrollPosition, VoidCallback> _positionToListener = <ScrollPosition, VoidCallback>{};

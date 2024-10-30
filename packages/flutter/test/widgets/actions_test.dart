@@ -339,6 +339,8 @@ void main() {
       bool hovering = false;
       bool focusing = false;
 
+      addTearDown(focusNode.dispose);
+
       Future<void> buildTest(bool enabled) async {
         await tester.pumpWidget(
           Center(
@@ -756,6 +758,10 @@ void main() {
       );
     });
 
+    tearDown(() async {
+      focusNode.dispose();
+    });
+
     testWidgets('FocusableActionDetector keeps track of focus and hover even when disabled.', (WidgetTester tester) async {
       FocusManager.instance.highlightStrategy = FocusHighlightStrategy.alwaysTraditional;
       final GlobalKey containerKey = GlobalKey();
@@ -860,13 +866,15 @@ void main() {
       (WidgetTester tester) async {
         final FocusNode buttonNode = FocusNode(debugLabel: 'Test');
 
+        addTearDown(buttonNode.dispose);
+
         await tester.pumpWidget(
           MaterialApp(
             home: FocusableActionDetector(
-              child: MaterialButton(
+              child: ElevatedButton(
+                onPressed: () {},
                 focusNode: buttonNode,
                 child: const Text('Test'),
-                onPressed: () {},
               ),
             ),
           ),
@@ -882,10 +890,10 @@ void main() {
           MaterialApp(
             home: FocusableActionDetector(
               descendantsAreFocusable: false,
-              child: MaterialButton(
+              child: ElevatedButton(
+                onPressed: () {},
                 focusNode: buttonNode,
                 child: const Text('Test'),
-                onPressed: () {},
               ),
             ),
           ),
@@ -904,21 +912,29 @@ void main() {
           (WidgetTester tester) async {
         final FocusNode buttonNode1 = FocusNode(debugLabel: 'Button Node 1');
         final FocusNode buttonNode2 = FocusNode(debugLabel: 'Button Node 2');
+        final FocusNode skipTraversalNode = FocusNode(skipTraversal: true);
+
+        addTearDown(() {
+          buttonNode1.dispose();
+          buttonNode2.dispose();
+          skipTraversalNode.dispose();
+        });
 
         await tester.pumpWidget(
           MaterialApp(
             home: FocusableActionDetector(
+              focusNode: skipTraversalNode,
               child: Column(
                 children: <Widget>[
-                  MaterialButton(
+                  ElevatedButton(
+                    onPressed: () {},
                     focusNode: buttonNode1,
                     child: const Text('Node 1'),
-                    onPressed: () {},
                   ),
-                  MaterialButton(
+                  ElevatedButton(
+                    onPressed: () {},
                     focusNode: buttonNode2,
                     child: const Text('Node 2'),
-                    onPressed: () {},
                   ),
                 ],
               ),
@@ -938,18 +954,19 @@ void main() {
         await tester.pumpWidget(
           MaterialApp(
             home: FocusableActionDetector(
+              focusNode: skipTraversalNode,
               descendantsAreTraversable: false,
               child: Column(
                 children: <Widget>[
-                  MaterialButton(
+                  ElevatedButton(
+                    onPressed: () {},
                     focusNode: buttonNode1,
                     child: const Text('Node 1'),
-                    onPressed: () {},
                   ),
-                  MaterialButton(
+                  ElevatedButton(
+                    onPressed: () {},
                     focusNode: buttonNode2,
                     child: const Text('Node 2'),
-                    onPressed: () {},
                   ),
                 ],
               ),
@@ -963,7 +980,7 @@ void main() {
         expect(buttonNode2.hasFocus, isFalse);
         primaryFocus!.nextFocus();
         await tester.pump();
-        expect(buttonNode1.hasFocus, isTrue);
+        expect(buttonNode1.hasFocus, isFalse);
         expect(buttonNode2.hasFocus, isFalse);
       },
     );
@@ -996,9 +1013,11 @@ void main() {
             // This semantic is from `Focus` widget under `FocusableActionDetector`.
             matchesSemantics(
               isFocusable: true,
+              hasFocusAction: true,
               children: <Matcher>[
                 matchesSemantics(
                   hasTapAction: true,
+                  hasFocusAction: true,
                   isButton: true,
                   hasEnabledState: true,
                   isEnabled: true,
@@ -1008,6 +1027,7 @@ void main() {
                 ),
                 matchesSemantics(
                   hasTapAction: true,
+                  hasFocusAction: true,
                   isButton: true,
                   hasEnabledState: true,
                   isEnabled: true,
@@ -1051,6 +1071,7 @@ void main() {
           children: <Matcher>[
             matchesSemantics(
               hasTapAction: true,
+              hasFocusAction: true,
               isButton: true,
               hasEnabledState: true,
               isEnabled: true,
@@ -1060,6 +1081,7 @@ void main() {
             ),
             matchesSemantics(
               hasTapAction: true,
+              hasFocusAction: true,
               isButton: true,
               hasEnabledState: true,
               isEnabled: true,

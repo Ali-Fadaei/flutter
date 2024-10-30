@@ -2,6 +2,9 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+/// @docImport 'basic.dart';
+library;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
 
@@ -32,8 +35,6 @@ import 'framework.dart';
 @immutable
 class ColorFiltered extends SingleChildRenderObjectWidget {
   /// Creates a widget that applies a [ColorFilter] to its child.
-  ///
-  /// The [colorFilter] must not be null.
   const ColorFiltered({required this.colorFilter, super.child, super.key});
 
   /// The color filter to apply to the child of this widget.

@@ -2,13 +2,14 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import 'dart:ffi' show Abi;
+
 import 'package:archive/archive.dart';
 import 'package:file/file.dart';
 import 'package:meta/meta.dart';
 import 'package:process/process.dart';
 
 import 'common.dart';
-import 'error_handling_io.dart';
 import 'file_system.dart';
 import 'io.dart';
 import 'logger.dart';
@@ -103,6 +104,18 @@ abstract class OperatingSystemUtils {
 
   /// Return the File representing a new pipe.
   File makePipe(String path);
+
+  /// Return a directory's total size in bytes.
+  int? getDirectorySize(Directory directory) {
+    int? size;
+    for (final FileSystemEntity entity in directory.listSync(recursive: true, followLinks: false)) {
+      if (entity is File) {
+        size ??= 0;
+        size += entity.lengthSync();
+      }
+    }
+    return size;
+  }
 
   void unzip(File file, Directory targetDirectory);
 
@@ -424,11 +437,7 @@ class _MacOSUtils extends _PosixUtils {
     return _hostPlatform!;
   }
 
-  /// Unzip into a temporary directory.
-  ///
-  /// For every file/directory/link in the unzipped file, delete the
-  /// corresponding entity in the [targetDirectory] before moving from the
-  /// temporary directory to the [targetDirectory].
+  // unzip, then rsync
   @override
   void unzip(File file, Directory targetDirectory) {
     if (!_processManager.canRun('unzip')) {
@@ -436,35 +445,35 @@ class _MacOSUtils extends _PosixUtils {
       // error in bin/internal/update_dart_sdk.sh
       throwToolExit('Missing "unzip" tool. Unable to extract ${file.path}.\nConsider running "brew install unzip".');
     }
-    final Directory tempDirectory = _fileSystem.systemTempDirectory.createTempSync('flutter_${file.basename}.');
-    try {
-      // Unzip to a temporary directory.
+    if (_processManager.canRun('rsync')) {
+      final Directory tempDirectory = _fileSystem.systemTempDirectory.createTempSync('flutter_${file.basename}.');
+      try {
+        // Unzip to a temporary directory.
+        _processUtils.runSync(
+          <String>['unzip', '-o', '-q', file.path, '-d', tempDirectory.path],
+          throwOnError: true,
+          verboseExceptions: true,
+        );
+        for (final FileSystemEntity unzippedFile in tempDirectory.listSync(followLinks: false)) {
+          // rsync --delete the unzipped files so files removed from the archive are also removed from the target.
+          // Add the '-8' parameter to avoid mangling filenames with encodings that do not match the current locale.
+          _processUtils.runSync(
+            <String>['rsync', '-8', '-av', '--delete', unzippedFile.path, targetDirectory.path],
+            throwOnError: true,
+            verboseExceptions: true,
+          );
+        }
+      } finally {
+        tempDirectory.deleteSync(recursive: true);
+      }
+    } else {
+      // Fall back to just unzipping.
+      _logger.printTrace('Unable to find rsync, falling back to direct unzipping.');
       _processUtils.runSync(
-        <String>['unzip', '-o', '-q', file.path, '-d', tempDirectory.path],
+        <String>['unzip', '-o', '-q', file.path, '-d', targetDirectory.path],
         throwOnError: true,
         verboseExceptions: true,
       );
-      for (final FileSystemEntity unzippedFile in tempDirectory.listSync(followLinks: false)) {
-        final FileSystemEntityType fileType = targetDirectory.fileSystem.typeSync(
-          targetDirectory.fileSystem.path.join(targetDirectory.path, unzippedFile.basename),
-          followLinks: false,
-        );
-        final FileSystemEntity fileToReplace;
-        if (fileType == FileSystemEntityType.directory) {
-          fileToReplace = targetDirectory.childDirectory(unzippedFile.basename);
-        } else if (fileType == FileSystemEntityType.link) {
-          fileToReplace = targetDirectory.childLink(unzippedFile.basename);
-        } else {
-          fileToReplace = targetDirectory.childFile(unzippedFile.basename);
-        }
-        // Delete existing version before moving.
-        ErrorHandlingFileSystem.deleteIfExists(fileToReplace, recursive: true);
-        unzippedFile.renameSync(fileToReplace.path);
-      }
-    } on FileSystemException catch (e) {
-      _logger.printTrace('${e.message}: ${e.osError}');
-    } finally {
-      tempDirectory.deleteSync(recursive: true);
     }
   }
 }
@@ -477,8 +486,17 @@ class _WindowsUtils extends OperatingSystemUtils {
     required super.processManager,
   }) : super._private();
 
+  HostPlatform? _hostPlatform;
+
   @override
-  HostPlatform hostPlatform = HostPlatform.windows_x64;
+  HostPlatform get hostPlatform {
+    if (_hostPlatform == null) {
+       final Abi abi = Abi.current();
+      _hostPlatform = (abi == Abi.windowsArm64) ? HostPlatform.windows_arm64 :
+                                                  HostPlatform.windows_x64;
+    }
+    return _hostPlatform!;
+  }
 
   @override
   void makeExecutable(File file) {}
@@ -612,17 +630,17 @@ enum HostPlatform {
   darwin_arm64,
   linux_x64,
   linux_arm64,
-  windows_x64;
+  windows_x64,
+  windows_arm64;
 
-  String get platformName {
-    return switch (this) {
-      HostPlatform.darwin_x64 => 'x64',
-      HostPlatform.darwin_arm64 => 'arm64',
-      HostPlatform.linux_x64 => 'x64',
-      HostPlatform.linux_arm64 => 'arm64',
-      HostPlatform.windows_x64 => 'x64'
-    };
-  }
+  String get platformName => switch (this) {
+    HostPlatform.darwin_x64    => 'x64',
+    HostPlatform.darwin_arm64  => 'arm64',
+    HostPlatform.linux_x64     => 'x64',
+    HostPlatform.linux_arm64   => 'arm64',
+    HostPlatform.windows_x64   => 'x64',
+    HostPlatform.windows_arm64 => 'arm64',
+  };
 }
 
 String getNameForHostPlatform(HostPlatform platform) {
@@ -631,6 +649,7 @@ String getNameForHostPlatform(HostPlatform platform) {
     HostPlatform.darwin_arm64 => 'darwin-arm64',
     HostPlatform.linux_x64 => 'linux-x64',
     HostPlatform.linux_arm64 => 'linux-arm64',
-    HostPlatform.windows_x64 => 'windows-x64'
+    HostPlatform.windows_x64 => 'windows-x64',
+    HostPlatform.windows_arm64 => 'windows-arm64',
   };
 }

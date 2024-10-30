@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+/// @docImport 'package:flutter/rendering.dart';
+library;
 
 import 'package:flutter/foundation.dart';
 import 'package:vector_math/vector_math_64.dart';
@@ -16,11 +18,16 @@ export 'events.dart' show PointerEvent;
 
 /// An object that can hit-test pointers.
 abstract interface class HitTestable {
-  /// Check whether the given position hits this object.
-  ///
-  /// If this given position hits this object, consider adding a [HitTestEntry]
-  /// to the given hit test result.
+  /// Deprecated. Use [hitTestInView] instead.
+  @Deprecated(
+    'Use hitTestInView and specify the view to hit test. '
+    'This feature was deprecated after v3.11.0-20.0.pre.',
+  )
   void hitTest(HitTestResult result, Offset position);
+
+  /// Fills the provided [HitTestResult] with [HitTestEntry]s for objects that
+  /// are hit at the given `position` in the view identified by `viewId`.
+  void hitTestInView(HitTestResult result, Offset position, int viewId);
 }
 
 /// An object that can dispatch events.

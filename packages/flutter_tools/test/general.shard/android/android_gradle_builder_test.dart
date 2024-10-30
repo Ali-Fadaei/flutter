@@ -21,36 +21,52 @@ import 'package:flutter_tools/src/base/user_messages.dart';
 import 'package:flutter_tools/src/build_info.dart';
 import 'package:flutter_tools/src/cache.dart';
 import 'package:flutter_tools/src/project.dart';
-import 'package:flutter_tools/src/reporting/reporting.dart';
 import 'package:test/fake.dart';
+import 'package:unified_analytics/unified_analytics.dart';
 
 import '../../src/common.dart';
 import '../../src/context.dart';
 import '../../src/fake_process_manager.dart';
 import '../../src/fakes.dart';
 
+const String minimalV2EmbeddingManifest = r'''
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application
+        android:name="${applicationName}">
+        <meta-data
+            android:name="flutterEmbedding"
+            android:value="2" />
+    </application>
+</manifest>
+''';
+
 void main() {
   group('gradle build', () {
     late BufferLogger logger;
-    late TestUsage testUsage;
-    late FileSystem fileSystem;
+    late FakeAnalytics fakeAnalytics;
+    late MemoryFileSystem fileSystem;
     late FakeProcessManager processManager;
 
     setUp(() {
       processManager = FakeProcessManager.empty();
       logger = BufferLogger.test();
-      testUsage = TestUsage();
       fileSystem = MemoryFileSystem.test();
       Cache.flutterRoot = '';
+
+      fakeAnalytics = getInitializedFakeAnalyticsInstance(
+        fs: fileSystem,
+        fakeFlutterVersion: FakeFlutterVersion(),
+      );
     });
 
     testUsingContext('Can immediately tool exit on recognized exit code/stderr', () async {
       final AndroidGradleBuilder builder = AndroidGradleBuilder(
+        java: FakeJava(),
         logger: logger,
         processManager: processManager,
         fileSystem: fileSystem,
         artifacts: Artifacts.test(),
-        usage: testUsage,
+        analytics: fakeAnalytics,
         gradleUtils: FakeGradleUtils(),
         platform: FakePlatform(),
         androidStudio: FakeAndroidStudio(),
@@ -61,7 +77,7 @@ void main() {
           '-q',
           '-Ptarget-platform=android-arm,android-arm64,android-x64',
           '-Ptarget=lib/main.dart',
-          '-Pbase-application-name=io.flutter.app.FlutterApplication',
+          '-Pbase-application-name=android.app.Application',
           '-Pdart-obfuscation=false',
           '-Ptrack-widget-creation=false',
           '-Ptree-shake-icons=false',
@@ -85,15 +101,21 @@ void main() {
         ..createSync(recursive: true)
         ..writeAsStringSync('apply from: irrelevant/flutter.gradle');
 
+      final FlutterProject project = FlutterProject.fromDirectoryTest(fileSystem.currentDirectory);
+      project.android.appManifestFile
+        ..createSync(recursive: true)
+        ..writeAsStringSync(minimalV2EmbeddingManifest);
+
       bool handlerCalled = false;
       await expectLater(() async {
        await builder.buildGradleApp(
-          project: FlutterProject.fromDirectoryTest(fileSystem.currentDirectory),
+          project: project,
           androidBuildInfo: const AndroidBuildInfo(
             BuildInfo(
               BuildMode.release,
               null,
               treeShakeIcons: false,
+              packageConfigPath: '.dart_tool/package_config.json',
             ),
           ),
           target: 'lib/main.dart',
@@ -108,7 +130,6 @@ void main() {
                 String? line,
                 FlutterProject? project,
                 bool? usesAndroidX,
-                bool? multidexEnabled
               }) async {
                 handlerCalled = true;
                 return GradleBuildStatus.exit;
@@ -124,25 +145,35 @@ void main() {
 
       expect(handlerCalled, isTrue);
 
-      expect(testUsage.events, contains(
-        const TestUsageEvent(
-          'build',
-          'gradle',
-          label: 'gradle-random-event-label-failure',
-          parameters: CustomDimensions(),
+      expect(
+        fakeAnalytics.sentEvents,
+        containsAll(<Event>[
+          Event.flutterBuildInfo(label: 'app-not-using-android-x', buildType: 'gradle'),
+          Event.flutterBuildInfo(label: 'gradle-random-event-label-failure', buildType: 'gradle'),
+        ]),
+      );
+
+      expect(
+        analyticsTimingEventExists(
+          sentEvents: fakeAnalytics.sentEvents,
+          workflow: 'build',
+          variableName: 'gradle',
         ),
-      ));
+        true,
+      );
+
     }, overrides: <Type, Generator>{
       AndroidStudio: () => FakeAndroidStudio(),
     });
 
     testUsingContext('Verbose mode for APKs includes Gradle stacktrace and sets debug log level', () async {
       final AndroidGradleBuilder builder = AndroidGradleBuilder(
+        java: FakeJava(),
         logger: BufferLogger.test(verbose: true),
         processManager: processManager,
         fileSystem: fileSystem,
         artifacts: Artifacts.test(),
-        usage: testUsage,
+        analytics: fakeAnalytics,
         gradleUtils: FakeGradleUtils(),
         platform: FakePlatform(),
         androidStudio: FakeAndroidStudio(),
@@ -155,7 +186,7 @@ void main() {
           '-Pverbose=true',
           '-Ptarget-platform=android-arm,android-arm64,android-x64',
           '-Ptarget=lib/main.dart',
-          '-Pbase-application-name=io.flutter.app.FlutterApplication',
+          '-Pbase-application-name=android.app.Application',
           '-Pdart-obfuscation=false',
           '-Ptrack-widget-creation=false',
           '-Ptree-shake-icons=false',
@@ -184,13 +215,19 @@ void main() {
         .childFile('app-release.apk')
         .createSync(recursive: true);
 
+      final FlutterProject project = FlutterProject.fromDirectoryTest(fileSystem.currentDirectory);
+      project.android.appManifestFile
+        ..createSync(recursive: true)
+        ..writeAsStringSync(minimalV2EmbeddingManifest);
+
       await builder.buildGradleApp(
-        project: FlutterProject.fromDirectoryTest(fileSystem.currentDirectory),
+        project: project,
         androidBuildInfo: const AndroidBuildInfo(
           BuildInfo(
             BuildMode.release,
             null,
             treeShakeIcons: false,
+            packageConfigPath: '.dart_tool/package_config.json',
           ),
         ),
         target: 'lib/main.dart',
@@ -205,11 +242,12 @@ void main() {
 
     testUsingContext('Can retry build on recognized exit code/stderr', () async {
       final AndroidGradleBuilder builder = AndroidGradleBuilder(
+        java: FakeJava(),
         logger: logger,
         processManager: processManager,
         fileSystem: fileSystem,
         artifacts: Artifacts.test(),
-        usage: testUsage,
+        analytics: fakeAnalytics,
         gradleUtils: FakeGradleUtils(),
         platform: FakePlatform(),
         androidStudio: FakeAndroidStudio(),
@@ -221,7 +259,7 @@ void main() {
           '-q',
           '-Ptarget-platform=android-arm,android-arm64,android-x64',
           '-Ptarget=lib/main.dart',
-          '-Pbase-application-name=io.flutter.app.FlutterApplication',
+          '-Pbase-application-name=android.app.Application',
           '-Pdart-obfuscation=false',
           '-Ptrack-widget-creation=false',
           '-Ptree-shake-icons=false',
@@ -252,16 +290,22 @@ void main() {
         ..createSync(recursive: true)
         ..writeAsStringSync('apply from: irrelevant/flutter.gradle');
 
+      final FlutterProject project = FlutterProject.fromDirectoryTest(fileSystem.currentDirectory);
+      project.android.appManifestFile
+        ..createSync(recursive: true)
+        ..writeAsStringSync(minimalV2EmbeddingManifest);
+
       int testFnCalled = 0;
       await expectLater(() async {
        await builder.buildGradleApp(
           maxRetries: maxRetries,
-          project: FlutterProject.fromDirectoryTest(fileSystem.currentDirectory),
+          project: project,
           androidBuildInfo: const AndroidBuildInfo(
             BuildInfo(
               BuildMode.release,
               null,
               treeShakeIcons: false,
+              packageConfigPath: '.dart_tool/package_config.json',
             ),
           ),
           target: 'lib/main.dart',
@@ -280,7 +324,6 @@ void main() {
                 String? line,
                 FlutterProject? project,
                 bool? usesAndroidX,
-                bool? multidexEnabled
               }) async {
                 return GradleBuildStatus.retry;
               },
@@ -296,12 +339,12 @@ void main() {
       expect(logger.statusText, contains('Retrying Gradle Build: #2, wait time: 200ms'));
 
       expect(testFnCalled, equals(maxRetries + 1));
-      expect(testUsage.events, contains(
-        const TestUsageEvent(
-          'build',
-          'gradle',
+
+      expect(fakeAnalytics.sentEvents, hasLength(7));
+      expect(fakeAnalytics.sentEvents, contains(
+        Event.flutterBuildInfo(
           label: 'gradle-random-event-label-failure',
-          parameters: CustomDimensions(),
+          buildType: 'gradle',
         ),
       ));
     }, overrides: <Type, Generator>{
@@ -310,11 +353,12 @@ void main() {
 
     testUsingContext('Converts recognized ProcessExceptions into tools exits', () async {
       final AndroidGradleBuilder builder = AndroidGradleBuilder(
+        java: FakeJava(),
         logger: logger,
         processManager: processManager,
         fileSystem: fileSystem,
         artifacts: Artifacts.test(),
-        usage: testUsage,
+        analytics: fakeAnalytics,
         gradleUtils: FakeGradleUtils(),
         platform: FakePlatform(),
         androidStudio: FakeAndroidStudio(),
@@ -325,7 +369,7 @@ void main() {
           '-q',
           '-Ptarget-platform=android-arm,android-arm64,android-x64',
           '-Ptarget=lib/main.dart',
-          '-Pbase-application-name=io.flutter.app.FlutterApplication',
+          '-Pbase-application-name=android.app.Application',
           '-Pdart-obfuscation=false',
           '-Ptrack-widget-creation=false',
           '-Ptree-shake-icons=false',
@@ -349,15 +393,21 @@ void main() {
         ..createSync(recursive: true)
         ..writeAsStringSync('apply from: irrelevant/flutter.gradle');
 
+      final FlutterProject project = FlutterProject.fromDirectoryTest(fileSystem.currentDirectory);
+      project.android.appManifestFile
+        ..createSync(recursive: true)
+        ..writeAsStringSync(minimalV2EmbeddingManifest);
+
       bool handlerCalled = false;
       await expectLater(() async {
        await builder.buildGradleApp(
-          project: FlutterProject.fromDirectoryTest(fileSystem.currentDirectory),
+          project: project,
           androidBuildInfo: const AndroidBuildInfo(
             BuildInfo(
               BuildMode.release,
               null,
               treeShakeIcons: false,
+              packageConfigPath: '.dart_tool/package_config.json',
             ),
           ),
           target: 'lib/main.dart',
@@ -372,7 +422,6 @@ void main() {
                 String? line,
                 FlutterProject? project,
                 bool? usesAndroidX,
-                bool? multidexEnabled
               }) async {
                 handlerCalled = true;
                 return GradleBuildStatus.exit;
@@ -388,25 +437,26 @@ void main() {
 
       expect(handlerCalled, isTrue);
 
-      expect(testUsage.events, contains(
-        const TestUsageEvent(
-          'build',
-          'gradle',
+      expect(fakeAnalytics.sentEvents, hasLength(3));
+      expect(fakeAnalytics.sentEvents, contains(
+        Event.flutterBuildInfo(
           label: 'gradle-random-event-label-failure',
-          parameters: CustomDimensions(),
+          buildType: 'gradle',
         ),
       ));
+
     }, overrides: <Type, Generator>{
       AndroidStudio: () => FakeAndroidStudio(),
     });
 
     testUsingContext('rethrows unrecognized ProcessException', () async {
       final AndroidGradleBuilder builder = AndroidGradleBuilder(
+        java: FakeJava(),
         logger: logger,
         processManager: processManager,
         fileSystem: fileSystem,
         artifacts: Artifacts.test(),
-        usage: testUsage,
+        analytics: fakeAnalytics,
         gradleUtils: FakeGradleUtils(),
         platform: FakePlatform(),
         androidStudio: FakeAndroidStudio(),
@@ -417,14 +467,14 @@ void main() {
           '-q',
           '-Ptarget-platform=android-arm,android-arm64,android-x64',
           '-Ptarget=lib/main.dart',
-          '-Pbase-application-name=io.flutter.app.FlutterApplication',
+          '-Pbase-application-name=android.app.Application',
           '-Pdart-obfuscation=false',
           '-Ptrack-widget-creation=false',
           '-Ptree-shake-icons=false',
           'assembleRelease',
         ],
         exitCode: 1,
-        onRun: () {
+        onRun: (_) {
           throw const ProcessException('', <String>[], 'Unrecognized');
         }
       ));
@@ -443,14 +493,20 @@ void main() {
         ..createSync(recursive: true)
         ..writeAsStringSync('apply from: irrelevant/flutter.gradle');
 
+      final FlutterProject project = FlutterProject.fromDirectoryTest(fileSystem.currentDirectory);
+      project.android.appManifestFile
+        ..createSync(recursive: true)
+        ..writeAsStringSync(minimalV2EmbeddingManifest);
+
       await expectLater(() async {
         await builder.buildGradleApp(
-          project: FlutterProject.fromDirectoryTest(fileSystem.currentDirectory),
+          project: project,
           androidBuildInfo: const AndroidBuildInfo(
             BuildInfo(
               BuildMode.release,
               null,
               treeShakeIcons: false,
+              packageConfigPath: '.dart_tool/package_config.json',
             ),
           ),
           target: 'lib/main.dart',
@@ -466,11 +522,12 @@ void main() {
 
     testUsingContext('logs success event after a successful retry', () async {
       final AndroidGradleBuilder builder = AndroidGradleBuilder(
+        java: FakeJava(),
         logger: logger,
         processManager: processManager,
         fileSystem: fileSystem,
         artifacts: Artifacts.test(),
-        usage: testUsage,
+        analytics: fakeAnalytics,
         gradleUtils: FakeGradleUtils(),
         platform: FakePlatform(),
         androidStudio: FakeAndroidStudio(),
@@ -481,7 +538,7 @@ void main() {
           '-q',
           '-Ptarget-platform=android-arm,android-arm64,android-x64',
           '-Ptarget=lib/main.dart',
-          '-Pbase-application-name=io.flutter.app.FlutterApplication',
+          '-Pbase-application-name=android.app.Application',
           '-Pdart-obfuscation=false',
           '-Ptrack-widget-creation=false',
           '-Ptree-shake-icons=false',
@@ -496,7 +553,7 @@ void main() {
           '-q',
           '-Ptarget-platform=android-arm,android-arm64,android-x64',
           '-Ptarget=lib/main.dart',
-          '-Pbase-application-name=io.flutter.app.FlutterApplication',
+          '-Pbase-application-name=android.app.Application',
           '-Pdart-obfuscation=false',
           '-Ptrack-widget-creation=false',
           '-Ptree-shake-icons=false',
@@ -525,13 +582,19 @@ void main() {
         .childFile('app-release.apk')
         .createSync(recursive: true);
 
+      final FlutterProject project = FlutterProject.fromDirectoryTest(fileSystem.currentDirectory);
+      project.android.appManifestFile
+        ..createSync(recursive: true)
+        ..writeAsStringSync(minimalV2EmbeddingManifest);
+
       await builder.buildGradleApp(
-        project: FlutterProject.fromDirectoryTest(fileSystem.currentDirectory),
+        project: project,
         androidBuildInfo: const AndroidBuildInfo(
           BuildInfo(
             BuildMode.release,
             null,
             treeShakeIcons: false,
+            packageConfigPath: '.dart_tool/package_config.json',
           ),
         ),
         target: 'lib/main.dart',
@@ -546,7 +609,6 @@ void main() {
               String? line,
               FlutterProject? project,
               bool? usesAndroidX,
-                bool? multidexEnabled
             }) async {
               return GradleBuildStatus.retry;
             },
@@ -554,14 +616,14 @@ void main() {
           ),
         ],
       );
-      expect(testUsage.events, contains(
-        const TestUsageEvent(
-          'build',
-          'gradle',
-          label: 'gradle-random-event-label-success',
-          parameters: CustomDimensions(),
+
+      expect(
+        fakeAnalytics.sentEvents,
+        contains(
+          Event.flutterBuildInfo(
+              label: 'gradle-random-event-label-success', buildType: 'gradle'),
         ),
-      ));
+      );
       expect(processManager, hasNoRemainingExpectations);
     }, overrides: <Type, Generator>{
       AndroidStudio: () => FakeAndroidStudio(),
@@ -569,11 +631,12 @@ void main() {
 
     testUsingContext('performs code size analysis and sends analytics', () async {
       final AndroidGradleBuilder builder = AndroidGradleBuilder(
+        java: FakeJava(),
         logger: logger,
         processManager: processManager,
         fileSystem: fileSystem,
         artifacts: Artifacts.test(),
-        usage: testUsage,
+        analytics: fakeAnalytics,
         gradleUtils: FakeGradleUtils(),
         platform: FakePlatform(
           environment: <String, String>{
@@ -588,7 +651,7 @@ void main() {
           '-q',
           '-Ptarget-platform=android-arm64',
           '-Ptarget=lib/main.dart',
-          '-Pbase-application-name=io.flutter.app.FlutterApplication',
+          '-Pbase-application-name=android.app.Application',
           '-Pdart-obfuscation=false',
           '-Ptrack-widget-creation=false',
           '-Ptree-shake-icons=false',
@@ -641,14 +704,20 @@ void main() {
         ..createSync(recursive: true)
         ..writeAsStringSync('{}');
 
+      final FlutterProject project = FlutterProject.fromDirectoryTest(fileSystem.currentDirectory);
+      project.android.appManifestFile
+        ..createSync(recursive: true)
+        ..writeAsStringSync(minimalV2EmbeddingManifest);
+
       await builder.buildGradleApp(
-        project: FlutterProject.fromDirectoryTest(fileSystem.currentDirectory),
+        project: project,
         androidBuildInfo: const AndroidBuildInfo(
           BuildInfo(
             BuildMode.release,
             null,
             treeShakeIcons: false,
             codeSizeDirectory: 'foo',
+            packageConfigPath: '.dart_tool/package_config.json',
           ),
           targetArchs: <AndroidArch>[AndroidArch.arm64_v8a],
         ),
@@ -658,23 +727,22 @@ void main() {
         localGradleErrors: <GradleHandledError>[],
       );
 
-      expect(testUsage.events, contains(
-        const TestUsageEvent(
-          'code-size-analysis',
-          'apk',
-        ),
-      ));
+      expect(
+        fakeAnalytics.sentEvents,
+        contains(Event.codeSizeAnalysis(platform: 'apk')),
+      );
     }, overrides: <Type, Generator>{
       AndroidStudio: () => FakeAndroidStudio(),
     });
 
     testUsingContext('indicates that an APK has been built successfully', () async {
       final AndroidGradleBuilder builder = AndroidGradleBuilder(
+        java: FakeJava(),
         logger: logger,
         processManager: processManager,
         fileSystem: fileSystem,
         artifacts: Artifacts.test(),
-        usage: testUsage,
+        analytics: fakeAnalytics,
         gradleUtils: FakeGradleUtils(),
         platform: FakePlatform(),
         androidStudio: FakeAndroidStudio(),
@@ -685,7 +753,7 @@ void main() {
           '-q',
           '-Ptarget-platform=android-arm,android-arm64,android-x64',
           '-Ptarget=lib/main.dart',
-          '-Pbase-application-name=io.flutter.app.FlutterApplication',
+          '-Pbase-application-name=android.app.Application',
           '-Pdart-obfuscation=false',
           '-Ptrack-widget-creation=false',
           '-Ptree-shake-icons=false',
@@ -713,13 +781,19 @@ void main() {
         .childFile('app-release.apk')
         .createSync(recursive: true);
 
+      final FlutterProject project = FlutterProject.fromDirectoryTest(fileSystem.currentDirectory);
+      project.android.appManifestFile
+        ..createSync(recursive: true)
+        ..writeAsStringSync(minimalV2EmbeddingManifest);
+
       await builder.buildGradleApp(
-        project: FlutterProject.fromDirectoryTest(fileSystem.currentDirectory),
+        project: project,
         androidBuildInfo: const AndroidBuildInfo(
           BuildInfo(
             BuildMode.release,
             null,
             treeShakeIcons: false,
+            packageConfigPath: '.dart_tool/package_config.json',
           ),
         ),
         target: 'lib/main.dart',
@@ -789,7 +863,11 @@ android {
         processManager: processManager,
         processUtils: ProcessUtils(processManager: processManager, logger: logger),
         userMessages: UserMessages(),
-        buildInfo: const BuildInfo(BuildMode.debug, null, treeShakeIcons: false),
+        buildInfo: const BuildInfo(
+          BuildMode.debug, null,
+          treeShakeIcons: false,
+          packageConfigPath: '.dart_tool/package_config.json',
+        ),
       );
 
       expect(androidApk?.id, 'com.example.foo');
@@ -797,11 +875,12 @@ android {
 
     testUsingContext('can call custom gradle task getBuildOptions and parse the result', () async {
       final AndroidGradleBuilder builder = AndroidGradleBuilder(
+        java: FakeJava(),
         logger: logger,
         processManager: processManager,
         fileSystem: fileSystem,
         artifacts: Artifacts.test(),
-        usage: testUsage,
+        analytics: fakeAnalytics,
         gradleUtils: FakeGradleUtils(),
         platform: FakePlatform(),
         androidStudio: FakeAndroidStudio(),
@@ -825,17 +904,28 @@ BuildVariant: paidProfile
         project: FlutterProject.fromDirectoryTest(fileSystem.currentDirectory),
       );
       expect(actual, <String>['freeDebug', 'paidDebug', 'freeRelease', 'paidRelease', 'freeProfile', 'paidProfile']);
+
+      expect(
+        analyticsTimingEventExists(
+          sentEvents: fakeAnalytics.sentEvents,
+          workflow: 'print',
+          variableName: 'android build variants',
+        ),
+        true,
+      );
     }, overrides: <Type, Generator>{
       AndroidStudio: () => FakeAndroidStudio(),
+      Analytics: () => fakeAnalytics,
     });
 
     testUsingContext('getBuildOptions returns empty list if gradle returns error', () async {
       final AndroidGradleBuilder builder = AndroidGradleBuilder(
+        java: FakeJava(),
         logger: logger,
         processManager: processManager,
         fileSystem: fileSystem,
         artifacts: Artifacts.test(),
-        usage: testUsage,
+        analytics: fakeAnalytics,
         gradleUtils: FakeGradleUtils(),
         platform: FakePlatform(),
         androidStudio: FakeAndroidStudio(),
@@ -859,13 +949,56 @@ Gradle Crashed
       AndroidStudio: () => FakeAndroidStudio(),
     });
 
-    testUsingContext("doesn't indicate how to consume an AAR when printHowToConsumeAar is false", () async {
+    testUsingContext('can call custom gradle task outputFreeDebugAppLinkSettings and parse the result', () async {
+      final String expectedOutputPath;
+      expectedOutputPath = fileSystem.path.join('/build/deeplink_data', 'app-link-settings-freeDebug.json');
       final AndroidGradleBuilder builder = AndroidGradleBuilder(
+        java: FakeJava(),
         logger: logger,
         processManager: processManager,
         fileSystem: fileSystem,
         artifacts: Artifacts.test(),
-        usage: testUsage,
+        analytics: fakeAnalytics,
+        gradleUtils: FakeGradleUtils(),
+        platform: FakePlatform(),
+        androidStudio: FakeAndroidStudio(),
+      );
+      processManager.addCommand(FakeCommand(
+        command: <String>[
+          'gradlew',
+          '-q',
+          '-PoutputPath=$expectedOutputPath',
+          'outputFreeDebugAppLinkSettings',
+        ],
+      ));
+      await builder.outputsAppLinkSettings(
+        'freeDebug',
+        project: FlutterProject.fromDirectoryTest(fileSystem.currentDirectory),
+      );
+
+      expect(
+        analyticsTimingEventExists(
+          sentEvents: fakeAnalytics.sentEvents,
+          workflow: 'outputs',
+          variableName: 'app link settings',
+        ),
+        true,
+      );
+    }, overrides: <Type, Generator>{
+      AndroidStudio: () => FakeAndroidStudio(),
+      FileSystem: () => fileSystem,
+      ProcessManager: () => processManager,
+      Analytics: () => fakeAnalytics,
+    });
+
+    testUsingContext("doesn't indicate how to consume an AAR when printHowToConsumeAar is false", () async {
+      final AndroidGradleBuilder builder = AndroidGradleBuilder(
+        java: FakeJava(),
+        logger: logger,
+        processManager: processManager,
+        fileSystem: fileSystem,
+        artifacts: Artifacts.test(),
+        analytics: fakeAnalytics,
         gradleUtils: FakeGradleUtils(),
         platform: FakePlatform(),
         androidStudio: FakeAndroidStudio(),
@@ -904,7 +1037,14 @@ Gradle Crashed
       fileSystem.directory('build/outputs/repo').createSync(recursive: true);
 
       await builder.buildGradleAar(
-        androidBuildInfo: const AndroidBuildInfo(BuildInfo(BuildMode.release, null, treeShakeIcons: false)),
+        androidBuildInfo: const AndroidBuildInfo(
+          BuildInfo(
+            BuildMode.release,
+            null,
+            treeShakeIcons: false,
+            packageConfigPath: '.dart_tool/package_config.json',
+          )
+        ),
         project: FlutterProject.fromDirectoryTest(fileSystem.currentDirectory),
         outputDirectory: fileSystem.directory('build/'),
         target: '',
@@ -920,17 +1060,28 @@ Gradle Crashed
         isFalse,
       );
       expect(processManager, hasNoRemainingExpectations);
+
+      expect(
+        analyticsTimingEventExists(
+          sentEvents: fakeAnalytics.sentEvents,
+          workflow: 'build',
+          variableName: 'gradle-aar',
+        ),
+        true,
+      );
     }, overrides: <Type, Generator>{
       AndroidStudio: () => FakeAndroidStudio(),
+      Analytics: () => fakeAnalytics,
     });
 
     testUsingContext('Verbose mode for AARs includes Gradle stacktrace and sets debug log level', () async {
       final AndroidGradleBuilder builder = AndroidGradleBuilder(
+        java: FakeJava(),
         logger: BufferLogger.test(verbose: true),
         processManager: processManager,
         fileSystem: fileSystem,
         artifacts: Artifacts.test(),
-        usage: testUsage,
+        analytics: fakeAnalytics,
         gradleUtils: FakeGradleUtils(),
         platform: FakePlatform(),
         androidStudio: FakeAndroidStudio(),
@@ -971,7 +1122,14 @@ Gradle Crashed
       fileSystem.directory('build/outputs/repo').createSync(recursive: true);
 
       await builder.buildGradleAar(
-        androidBuildInfo: const AndroidBuildInfo(BuildInfo(BuildMode.release, null, treeShakeIcons: false)),
+        androidBuildInfo: const AndroidBuildInfo(
+          BuildInfo(
+            BuildMode.release,
+            null,
+            treeShakeIcons: false,
+            packageConfigPath: '.dart_tool/package_config.json',
+          )
+        ),
         project: FlutterProject.fromDirectoryTest(fileSystem.currentDirectory),
         outputDirectory: fileSystem.directory('build/'),
         target: '',
@@ -984,11 +1142,12 @@ Gradle Crashed
 
     testUsingContext('gradle exit code and stderr is forwarded to tool exit', () async {
       final AndroidGradleBuilder builder = AndroidGradleBuilder(
+        java: FakeJava(),
         logger: logger,
         processManager: processManager,
         fileSystem: fileSystem,
         artifacts: Artifacts.test(),
-        usage: testUsage,
+        analytics: fakeAnalytics,
         gradleUtils: FakeGradleUtils(),
         platform: FakePlatform(),
         androidStudio: FakeAndroidStudio(),
@@ -1030,7 +1189,14 @@ Gradle Crashed
 
       await expectLater(() async =>
         builder.buildGradleAar(
-          androidBuildInfo: const AndroidBuildInfo(BuildInfo(BuildMode.release, null, treeShakeIcons: false)),
+          androidBuildInfo: const AndroidBuildInfo(
+            BuildInfo(
+              BuildMode.release,
+              null,
+              treeShakeIcons: false,
+              packageConfigPath: '.dart_tool/package_config.json',
+            )
+          ),
           project: FlutterProject.fromDirectoryTest(fileSystem.currentDirectory),
           outputDirectory: fileSystem.directory('build/'),
           target: '',
@@ -1043,11 +1209,12 @@ Gradle Crashed
 
     testUsingContext('build apk uses selected local engine with arm32 ABI', () async {
       final AndroidGradleBuilder builder = AndroidGradleBuilder(
+        java: FakeJava(),
         logger: logger,
         processManager: processManager,
         fileSystem: fileSystem,
-        artifacts: Artifacts.test(localEngine: 'out/android_arm'),
-        usage: testUsage,
+        artifacts: Artifacts.testLocalEngine(localEngine: 'out/android_arm', localEngineHost: 'out/host_release'),
+        analytics: fakeAnalytics,
         gradleUtils: FakeGradleUtils(),
         platform: FakePlatform(),
         androidStudio: FakeAndroidStudio(),
@@ -1059,9 +1226,10 @@ Gradle Crashed
           '-Plocal-engine-repo=/.tmp_rand0/flutter_tool_local_engine_repo.rand0',
           '-Plocal-engine-build-mode=release',
           '-Plocal-engine-out=out/android_arm',
+          '-Plocal-engine-host-out=out/host_release',
           '-Ptarget-platform=android-arm',
           '-Ptarget=lib/main.dart',
-          '-Pbase-application-name=io.flutter.app.FlutterApplication',
+          '-Pbase-application-name=android.app.Application',
           '-Pdart-obfuscation=false',
           '-Ptrack-widget-creation=false',
           '-Ptree-shake-icons=false',
@@ -1097,15 +1265,20 @@ Gradle Crashed
         .childFile('build.gradle')
         ..createSync(recursive: true)
         ..writeAsStringSync('apply from: irrelevant/flutter.gradle');
+      final FlutterProject project = FlutterProject.fromDirectoryTest(fileSystem.currentDirectory);
+      project.android.appManifestFile
+        ..createSync(recursive: true)
+        ..writeAsStringSync(minimalV2EmbeddingManifest);
 
       await expectLater(() async {
         await builder.buildGradleApp(
-          project: FlutterProject.fromDirectoryTest(fileSystem.currentDirectory),
+          project: project,
           androidBuildInfo: const AndroidBuildInfo(
             BuildInfo(
               BuildMode.release,
               null,
               treeShakeIcons: false,
+              packageConfigPath: '.dart_tool/package_config.json',
             ),
           ),
           target: 'lib/main.dart',
@@ -1121,11 +1294,12 @@ Gradle Crashed
 
     testUsingContext('build apk uses selected local engine with arm64 ABI', () async {
       final AndroidGradleBuilder builder = AndroidGradleBuilder(
+        java: FakeJava(),
         logger: logger,
         processManager: processManager,
         fileSystem: fileSystem,
-        artifacts: Artifacts.test(localEngine: 'out/android_arm64'),
-        usage: testUsage,
+        artifacts: Artifacts.testLocalEngine(localEngine: 'out/android_arm64', localEngineHost: 'out/host_release'),
+        analytics: fakeAnalytics,
         gradleUtils: FakeGradleUtils(),
         platform: FakePlatform(),
         androidStudio: FakeAndroidStudio(),
@@ -1137,9 +1311,10 @@ Gradle Crashed
           '-Plocal-engine-repo=/.tmp_rand0/flutter_tool_local_engine_repo.rand0',
           '-Plocal-engine-build-mode=release',
           '-Plocal-engine-out=out/android_arm64',
+          '-Plocal-engine-host-out=out/host_release',
           '-Ptarget-platform=android-arm64',
           '-Ptarget=lib/main.dart',
-          '-Pbase-application-name=io.flutter.app.FlutterApplication',
+          '-Pbase-application-name=android.app.Application',
           '-Pdart-obfuscation=false',
           '-Ptrack-widget-creation=false',
           '-Ptree-shake-icons=false',
@@ -1175,15 +1350,20 @@ Gradle Crashed
           .childFile('build.gradle')
         ..createSync(recursive: true)
         ..writeAsStringSync('apply from: irrelevant/flutter.gradle');
+      final FlutterProject project = FlutterProject.fromDirectoryTest(fileSystem.currentDirectory);
+      project.android.appManifestFile
+        ..createSync(recursive: true)
+        ..writeAsStringSync(minimalV2EmbeddingManifest);
 
       await expectLater(() async {
         await builder.buildGradleApp(
-          project: FlutterProject.fromDirectoryTest(fileSystem.currentDirectory),
+          project: project,
           androidBuildInfo: const AndroidBuildInfo(
             BuildInfo(
               BuildMode.release,
               null,
               treeShakeIcons: false,
+              packageConfigPath: '.dart_tool/package_config.json',
             ),
           ),
           target: 'lib/main.dart',
@@ -1199,11 +1379,12 @@ Gradle Crashed
 
     testUsingContext('build apk uses selected local engine with x86 ABI', () async {
       final AndroidGradleBuilder builder = AndroidGradleBuilder(
+        java: FakeJava(),
         logger: logger,
         processManager: processManager,
         fileSystem: fileSystem,
-        artifacts: Artifacts.test(localEngine: 'out/android_x86'),
-        usage: testUsage,
+        artifacts: Artifacts.testLocalEngine(localEngine: 'out/android_x86', localEngineHost: 'out/host_release'),
+        analytics: fakeAnalytics,
         gradleUtils: FakeGradleUtils(),
         platform: FakePlatform(),
         androidStudio: FakeAndroidStudio(),
@@ -1215,9 +1396,10 @@ Gradle Crashed
           '-Plocal-engine-repo=/.tmp_rand0/flutter_tool_local_engine_repo.rand0',
           '-Plocal-engine-build-mode=release',
           '-Plocal-engine-out=out/android_x86',
+          '-Plocal-engine-host-out=out/host_release',
           '-Ptarget-platform=android-x86',
           '-Ptarget=lib/main.dart',
-          '-Pbase-application-name=io.flutter.app.FlutterApplication',
+          '-Pbase-application-name=android.app.Application',
           '-Pdart-obfuscation=false',
           '-Ptrack-widget-creation=false',
           '-Ptree-shake-icons=false',
@@ -1253,15 +1435,20 @@ Gradle Crashed
           .childFile('build.gradle')
         ..createSync(recursive: true)
         ..writeAsStringSync('apply from: irrelevant/flutter.gradle');
+      final FlutterProject project = FlutterProject.fromDirectoryTest(fileSystem.currentDirectory);
+      project.android.appManifestFile
+        ..createSync(recursive: true)
+        ..writeAsStringSync(minimalV2EmbeddingManifest);
 
       await expectLater(() async {
         await builder.buildGradleApp(
-          project: FlutterProject.fromDirectoryTest(fileSystem.currentDirectory),
+          project: project,
           androidBuildInfo: const AndroidBuildInfo(
             BuildInfo(
               BuildMode.release,
               null,
               treeShakeIcons: false,
+              packageConfigPath: '.dart_tool/package_config.json',
             ),
           ),
           target: 'lib/main.dart',
@@ -1277,11 +1464,12 @@ Gradle Crashed
 
     testUsingContext('build apk uses selected local engine with x64 ABI', () async {
       final AndroidGradleBuilder builder = AndroidGradleBuilder(
+        java: FakeJava(),
         logger: logger,
         processManager: processManager,
         fileSystem: fileSystem,
-        artifacts: Artifacts.test(localEngine: 'out/android_x64'),
-        usage: testUsage,
+        artifacts: Artifacts.testLocalEngine(localEngine: 'out/android_x64', localEngineHost: 'out/host_release'),
+        analytics: fakeAnalytics,
         gradleUtils: FakeGradleUtils(),
         platform: FakePlatform(),
         androidStudio: FakeAndroidStudio(),
@@ -1293,9 +1481,10 @@ Gradle Crashed
           '-Plocal-engine-repo=/.tmp_rand0/flutter_tool_local_engine_repo.rand0',
           '-Plocal-engine-build-mode=release',
           '-Plocal-engine-out=out/android_x64',
+          '-Plocal-engine-host-out=out/host_release',
           '-Ptarget-platform=android-x64',
           '-Ptarget=lib/main.dart',
-          '-Pbase-application-name=io.flutter.app.FlutterApplication',
+          '-Pbase-application-name=android.app.Application',
           '-Pdart-obfuscation=false',
           '-Ptrack-widget-creation=false',
           '-Ptree-shake-icons=false',
@@ -1332,15 +1521,20 @@ Gradle Crashed
           .childFile('build.gradle')
         ..createSync(recursive: true)
         ..writeAsStringSync('apply from: irrelevant/flutter.gradle');
+      final FlutterProject project = FlutterProject.fromDirectoryTest(fileSystem.currentDirectory);
+      project.android.appManifestFile
+        ..createSync(recursive: true)
+        ..writeAsStringSync(minimalV2EmbeddingManifest);
 
       await expectLater(() async {
         await builder.buildGradleApp(
-          project: FlutterProject.fromDirectoryTest(fileSystem.currentDirectory),
+          project: project,
           androidBuildInfo: const AndroidBuildInfo(
             BuildInfo(
               BuildMode.release,
               null,
               treeShakeIcons: false,
+              packageConfigPath: '.dart_tool/package_config.json',
             ),
           ),
           target: 'lib/main.dart',
@@ -1356,11 +1550,12 @@ Gradle Crashed
 
     testUsingContext('honors --no-android-gradle-daemon setting', () async {
       final AndroidGradleBuilder builder = AndroidGradleBuilder(
+        java: FakeJava(),
         logger: logger,
         processManager: processManager,
         fileSystem: fileSystem,
         artifacts: Artifacts.test(),
-        usage: testUsage,
+        analytics: fakeAnalytics,
         gradleUtils: FakeGradleUtils(),
         platform: FakePlatform(),
         androidStudio: FakeAndroidStudio(),
@@ -1372,7 +1567,7 @@ Gradle Crashed
           '--no-daemon',
           '-Ptarget-platform=android-arm,android-arm64,android-x64',
           '-Ptarget=lib/main.dart',
-          '-Pbase-application-name=io.flutter.app.FlutterApplication',
+          '-Pbase-application-name=android.app.Application',
           '-Pdart-obfuscation=false',
           '-Ptrack-widget-creation=false',
           '-Ptree-shake-icons=false',
@@ -1391,16 +1586,21 @@ Gradle Crashed
           .childFile('build.gradle')
         ..createSync(recursive: true)
         ..writeAsStringSync('apply from: irrelevant/flutter.gradle');
+      final FlutterProject project = FlutterProject.fromDirectoryTest(fileSystem.currentDirectory);
+      project.android.appManifestFile
+        ..createSync(recursive: true)
+        ..writeAsStringSync(minimalV2EmbeddingManifest);
 
       await expectLater(() async {
         await builder.buildGradleApp(
-          project: FlutterProject.fromDirectoryTest(fileSystem.currentDirectory),
+          project: project,
           androidBuildInfo: const AndroidBuildInfo(
             BuildInfo(
               BuildMode.release,
               null,
               treeShakeIcons: false,
               androidGradleDaemon: false,
+              packageConfigPath: '.dart_tool/package_config.json',
             ),
           ),
           target: 'lib/main.dart',
@@ -1416,11 +1616,12 @@ Gradle Crashed
 
     testUsingContext('build aar uses selected local engine with arm32 ABI', () async {
       final AndroidGradleBuilder builder = AndroidGradleBuilder(
+        java: FakeJava(),
         logger: logger,
         processManager: processManager,
         fileSystem: fileSystem,
-        artifacts: Artifacts.test(localEngine: 'out/android_arm'),
-        usage: testUsage,
+        artifacts: Artifacts.testLocalEngine(localEngine: 'out/android_arm', localEngineHost: 'out/host_release'),
+        analytics: fakeAnalytics,
         gradleUtils: FakeGradleUtils(),
         platform: FakePlatform(),
         androidStudio: FakeAndroidStudio(),
@@ -1440,6 +1641,7 @@ Gradle Crashed
           '-Plocal-engine-repo=/.tmp_rand0/flutter_tool_local_engine_repo.rand0',
           '-Plocal-engine-build-mode=release',
           '-Plocal-engine-out=out/android_arm',
+          '-Plocal-engine-host-out=out/host_release',
           '-Ptarget-platform=android-arm',
           'assembleAarRelease',
         ],
@@ -1484,7 +1686,14 @@ Gradle Crashed
       fileSystem.directory('build/outputs/repo').createSync(recursive: true);
 
       await builder.buildGradleAar(
-        androidBuildInfo: const AndroidBuildInfo(BuildInfo(BuildMode.release, null, treeShakeIcons: false)),
+        androidBuildInfo: const AndroidBuildInfo(
+          BuildInfo(
+            BuildMode.release,
+            null,
+            treeShakeIcons: false,
+            packageConfigPath: '.dart_tool/package_config.json',
+          )
+        ),
         project: FlutterProject.fromDirectoryTest(fileSystem.currentDirectory),
         outputDirectory: fileSystem.directory('build/'),
         target: '',
@@ -1503,11 +1712,12 @@ Gradle Crashed
 
     testUsingContext('build aar uses selected local engine with x64 ABI', () async {
       final AndroidGradleBuilder builder = AndroidGradleBuilder(
+        java: FakeJava(),
         logger: logger,
         processManager: processManager,
         fileSystem: fileSystem,
-        artifacts: Artifacts.test(localEngine: 'out/android_arm64'),
-        usage: testUsage,
+        artifacts: Artifacts.testLocalEngine(localEngine: 'out/android_arm64', localEngineHost: 'out/host_release'),
+        analytics: fakeAnalytics,
         gradleUtils: FakeGradleUtils(),
         platform: FakePlatform(),
         androidStudio: FakeAndroidStudio(),
@@ -1527,6 +1737,7 @@ Gradle Crashed
           '-Plocal-engine-repo=/.tmp_rand0/flutter_tool_local_engine_repo.rand0',
           '-Plocal-engine-build-mode=release',
           '-Plocal-engine-out=out/android_arm64',
+          '-Plocal-engine-host-out=out/host_release',
           '-Ptarget-platform=android-arm64',
           'assembleAarRelease',
         ],
@@ -1571,7 +1782,13 @@ Gradle Crashed
 
       await builder.buildGradleAar(
         androidBuildInfo: const AndroidBuildInfo(
-            BuildInfo(BuildMode.release, null, treeShakeIcons: false)),
+            BuildInfo(
+              BuildMode.release,
+              null,
+              treeShakeIcons: false,
+              packageConfigPath: '.dart_tool/package_config.json',
+            )
+          ),
         project: FlutterProject.fromDirectoryTest(fileSystem.currentDirectory),
         outputDirectory: fileSystem.directory('build/'),
         target: '',
@@ -1590,11 +1807,12 @@ Gradle Crashed
 
     testUsingContext('build aar uses selected local engine with x86 ABI', () async {
       final AndroidGradleBuilder builder = AndroidGradleBuilder(
+        java: FakeJava(),
         logger: logger,
         processManager: processManager,
         fileSystem: fileSystem,
-        artifacts: Artifacts.test(localEngine: 'out/android_x86'),
-        usage: testUsage,
+        artifacts: Artifacts.testLocalEngine(localEngine: 'out/android_x86', localEngineHost: 'out/host_release'),
+        analytics: fakeAnalytics,
         gradleUtils: FakeGradleUtils(),
         platform: FakePlatform(),
         androidStudio: FakeAndroidStudio(),
@@ -1614,6 +1832,7 @@ Gradle Crashed
           '-Plocal-engine-repo=/.tmp_rand0/flutter_tool_local_engine_repo.rand0',
           '-Plocal-engine-build-mode=release',
           '-Plocal-engine-out=out/android_x86',
+          '-Plocal-engine-host-out=out/host_release',
           '-Ptarget-platform=android-x86',
           'assembleAarRelease',
         ],
@@ -1658,7 +1877,13 @@ Gradle Crashed
 
       await builder.buildGradleAar(
         androidBuildInfo: const AndroidBuildInfo(
-            BuildInfo(BuildMode.release, null, treeShakeIcons: false)),
+            BuildInfo(
+              BuildMode.release,
+              null,
+              treeShakeIcons: false,
+              packageConfigPath: '.dart_tool/package_config.json',
+            )
+          ),
         project: FlutterProject.fromDirectoryTest(fileSystem.currentDirectory),
         outputDirectory: fileSystem.directory('build/'),
         target: '',
@@ -1677,11 +1902,12 @@ Gradle Crashed
 
     testUsingContext('build aar uses selected local engine on x64 ABI', () async {
       final AndroidGradleBuilder builder = AndroidGradleBuilder(
+        java: FakeJava(),
         logger: logger,
         processManager: processManager,
         fileSystem: fileSystem,
-        artifacts: Artifacts.test(localEngine: 'out/android_x64'),
-        usage: testUsage,
+        artifacts: Artifacts.testLocalEngine(localEngine: 'out/android_x64', localEngineHost: 'out/host_release'),
+        analytics: fakeAnalytics,
         gradleUtils: FakeGradleUtils(),
         platform: FakePlatform(),
         androidStudio: FakeAndroidStudio(),
@@ -1701,6 +1927,7 @@ Gradle Crashed
           '-Plocal-engine-repo=/.tmp_rand0/flutter_tool_local_engine_repo.rand0',
           '-Plocal-engine-build-mode=release',
           '-Plocal-engine-out=out/android_x64',
+          '-Plocal-engine-host-out=out/host_release',
           '-Ptarget-platform=android-x64',
           'assembleAarRelease',
         ],
@@ -1745,7 +1972,13 @@ Gradle Crashed
 
       await builder.buildGradleAar(
         androidBuildInfo: const AndroidBuildInfo(
-            BuildInfo(BuildMode.release, null, treeShakeIcons: false)),
+            BuildInfo(
+              BuildMode.release,
+              null,
+              treeShakeIcons: false,
+              packageConfigPath: '.dart_tool/package_config.json',
+            )
+          ),
         project: FlutterProject.fromDirectoryTest(fileSystem.currentDirectory),
         outputDirectory: fileSystem.directory('build/'),
         target: '',
@@ -1773,5 +2006,5 @@ class FakeGradleUtils extends Fake implements GradleUtils {
 
 class FakeAndroidStudio extends Fake implements AndroidStudio {
   @override
-  String get javaPath => 'java';
+  String get javaPath => '/android-studio/jbr';
 }

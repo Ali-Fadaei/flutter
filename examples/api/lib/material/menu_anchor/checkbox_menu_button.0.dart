@@ -102,7 +102,7 @@ class MenuApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const MaterialApp(
-      home: Scaffold(body: MyCheckboxMenu(message: kMessage)),
+      home: Scaffold(body: SafeArea(child: MyCheckboxMenu(message: kMessage))),
     );
   }
 }

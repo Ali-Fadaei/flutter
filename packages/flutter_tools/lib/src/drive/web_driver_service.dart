@@ -41,6 +41,9 @@ class WebDriverService extends DriverService {
   late ResidentRunner _residentRunner;
   Uri? _webUri;
 
+  @visibleForTesting
+  Uri? get webUri => _webUri;
+
   /// The result of [ResidentRunner.run].
   ///
   /// This is expected to stay `null` throughout the test, as the application
@@ -52,8 +55,7 @@ class WebDriverService extends DriverService {
   Future<void> start(
     BuildInfo buildInfo,
     Device device,
-    DebuggingOptions debuggingOptions,
-    bool ipv6, {
+    DebuggingOptions debuggingOptions, {
     File? applicationBinary,
     String? route,
     String? userIdentifier,
@@ -69,21 +71,27 @@ class WebDriverService extends DriverService {
     _residentRunner = webRunnerFactory!.createWebRunner(
       flutterDevice,
       target: mainPath,
-      ipv6: ipv6,
       debuggingOptions: buildInfo.isRelease ?
         DebuggingOptions.disabled(
           buildInfo,
           port: debuggingOptions.port,
+          hostname: debuggingOptions.hostname,
+          webRenderer: debuggingOptions.webRenderer,
+          webUseWasm: debuggingOptions.webUseWasm,
         )
         : DebuggingOptions.enabled(
           buildInfo,
           port: debuggingOptions.port,
+          hostname: debuggingOptions.hostname,
           disablePortPublication: debuggingOptions.disablePortPublication,
+          webRenderer: debuggingOptions.webRenderer,
+          webUseWasm: debuggingOptions.webUseWasm,
         ),
       stayResident: true,
       flutterProject: FlutterProject.current(),
       fileSystem: globals.fs,
       usage: globals.flutterUsage,
+      analytics: globals.analytics,
       logger: _logger,
       systemClock: globals.systemClock,
     );
@@ -106,20 +114,25 @@ class WebDriverService extends DriverService {
     ]);
 
     if (_runResult != null) {
-      throw ToolExit(
+      throwToolExit(
         'Application exited before the test started. Check web driver logs '
         'for possible application-side errors.'
       );
     }
 
     if (!isAppStarted) {
-      throw ToolExit('Failed to start application');
+      throwToolExit('Failed to start application');
     }
 
-    _webUri = _residentRunner.uri;
+    if (_residentRunner.uri == null) {
+      throwToolExit('Unable to connect to the app. URL not available.');
+    }
 
-    if (_webUri == null) {
-      throw ToolExit('Unable to connect to the app. URL not available.');
+    if (debuggingOptions.webLaunchUrl != null) {
+      // It should throw an error if the provided url is invalid so no tryParse
+      _webUri = Uri.parse(debuggingOptions.webLaunchUrl!);
+    } else {
+      _webUri = _residentRunner.uri;
     }
   }
 
@@ -156,7 +169,7 @@ class WebDriverService extends DriverService {
         'Unable to start a WebDriver session for web testing.\n'
         'Make sure you have the correct WebDriver server (e.g. chromedriver) running at $driverPort.\n'
         'For instructions on how to obtain and run a WebDriver server, see:\n'
-        'https://flutter.dev/docs/testing/integration-tests#running-in-a-browser\n'
+        'https://flutter.dev/to/integration-test-on-web\n'
       );
     }
 
@@ -180,7 +193,6 @@ class WebDriverService extends DriverService {
       _dartSdkPath,
       ...arguments,
       testFile,
-      '-rexpanded',
     ], environment: <String, String>{
       'VM_SERVICE_URL': _webUri.toString(),
       ..._additionalDriverEnvironment(webDriver, browserName, androidEmulator),
@@ -197,7 +209,7 @@ class WebDriverService extends DriverService {
     await _residentRunner.cleanupAtFinish();
 
     if (appDidFinishPrematurely) {
-      throw ToolExit(
+      throwToolExit(
         'Application exited before the test finished. Check web driver logs '
         'for possible application-side errors.'
       );
@@ -217,7 +229,7 @@ class WebDriverService extends DriverService {
   }
 
   @override
-  Future<void> reuseApplication(Uri vmServiceUri, Device device, DebuggingOptions debuggingOptions, bool ipv6) async {
+  Future<void> reuseApplication(Uri vmServiceUri, Device device, DebuggingOptions debuggingOptions) async {
     throwToolExit('--use-existing-app is not supported with flutter web driver');
   }
 }
@@ -253,7 +265,7 @@ enum Browser implements CliEnum {
   };
 
   @override
-  String get cliName => snakeCase(name, '-');
+  String get cliName => kebabCase(name);
 
   static Browser fromCliName(String? value) => Browser.values.singleWhere(
     (Browser element) => element.cliName == value,

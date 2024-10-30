@@ -132,7 +132,7 @@ void main() {
           );
           final Iterable<double> currentRotations = rotationTransitions.map((RotationTransition t) => t.turns.value);
 
-          if (previousRotations != null && previousRotations!.isNotEmpty && currentRotations.isNotEmpty
+          if ((previousRotations?.isNotEmpty ?? false) && currentRotations.isNotEmpty
               && previousRect != null && currentRect != null) {
             final List<double> deltas = <double>[];
             for (final double currentRotation in currentRotations) {
@@ -693,6 +693,7 @@ void main() {
       bool resizeToAvoidBottomInset = true,
     }) {
       return MaterialApp(
+        theme: ThemeData(useMaterial3: false),
         home: MediaQuery(
           data: data,
           child: Scaffold(
@@ -1614,12 +1615,8 @@ class _GeometryListenerState extends State<_GeometryListener> {
       return;
     }
 
-    if (geometryListenable != null) {
-      geometryListenable!.removeListener(onGeometryChanged);
-    }
-
-    geometryListenable = newListenable;
-    geometryListenable!.addListener(onGeometryChanged);
+    geometryListenable?.removeListener(onGeometryChanged);
+    geometryListenable = newListenable..addListener(onGeometryChanged);
     cache = _GeometryCachePainter(geometryListenable!);
   }
 
@@ -1640,15 +1637,14 @@ const double _dockedOffsetY = 544.0;
 const double _containedOffsetY = 544.0 + 56.0 / 2;
 const double _miniFloatOffsetY = _floatOffsetY + kMiniButtonOffsetAdjustment;
 
-Widget _singleFabScaffold(
-  FloatingActionButtonLocation location,
-  {
-    FloatingActionButtonAnimator? animator,
-    bool mini = false,
-    TextDirection textDirection = TextDirection.ltr,
-  }
-) {
+Widget _singleFabScaffold(FloatingActionButtonLocation location, {
+  bool useMaterial3 = false,
+  FloatingActionButtonAnimator? animator,
+  bool mini = false,
+  TextDirection textDirection = TextDirection.ltr,
+}) {
   return MaterialApp(
+    theme: ThemeData(useMaterial3: useMaterial3),
     home: Directionality(
       textDirection: textDirection,
       child: Scaffold(

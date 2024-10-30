@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+/// @docImport 'package:flutter/material.dart';
+///
+/// @docImport 'box_decoration.dart';
+library;
+
 import 'dart:collection';
 import 'dart:math' as math;
 import 'dart:ui' as ui show Gradient, lerpDouble;
@@ -149,8 +154,8 @@ class GradientRotation extends GradientTransform {
 abstract class Gradient {
   /// Initialize the gradient's colors and stops.
   ///
-  /// The [colors] argument must not be null, and must have at least two colors
-  /// (the length is not verified until the [createShader] method is called).
+  /// The [colors] argument must have at least two colors (the length is not
+  /// verified until the [createShader] method is called).
   ///
   /// If specified, the [stops] argument must have the same number of entries as
   /// [colors] (this is also not verified until the [createShader] method is
@@ -234,6 +239,9 @@ abstract class Gradient {
   ///
   /// Typically this is the same as interpolating from null (with [lerp]).
   Gradient scale(double factor);
+
+  /// Returns a new [Gradient] with each color set to the given opacity.
+  Gradient withOpacity(double opacity);
 
   /// Linearly interpolates from another [Gradient] to `this`.
   ///
@@ -374,8 +382,7 @@ abstract class Gradient {
 class LinearGradient extends Gradient {
   /// Creates a linear gradient.
   ///
-  /// The [colors] argument must not be null. If [stops] is non-null, it must
-  /// have the same length as [colors].
+  /// If [stops] is non-null, it must have the same length as [colors].
   const LinearGradient({
     this.begin = Alignment.centerLeft,
     this.end = Alignment.centerRight,
@@ -452,16 +459,16 @@ class LinearGradient extends Gradient {
 
   @override
   Gradient? lerpFrom(Gradient? a, double t) {
-    if (a == null || (a is LinearGradient)) {
-      return LinearGradient.lerp(a as LinearGradient?, this, t);
+    if (a is LinearGradient?) {
+      return LinearGradient.lerp(a, this, t);
     }
     return super.lerpFrom(a, t);
   }
 
   @override
   Gradient? lerpTo(Gradient? b, double t) {
-    if (b == null || (b is LinearGradient)) {
-      return LinearGradient.lerp(this, b as LinearGradient?, t);
+    if (b is LinearGradient?) {
+      return LinearGradient.lerp(this, b, t);
     }
     return super.lerpTo(b, t);
   }
@@ -508,6 +515,7 @@ class LinearGradient extends Gradient {
       colors: interpolated.colors,
       stops: interpolated.stops,
       tileMode: t < 0.5 ? a.tileMode : b.tileMode, // TODO(ianh): interpolate tile mode
+      transform: t < 0.5 ? a.transform : b.transform,
     );
   }
 
@@ -550,6 +558,20 @@ class LinearGradient extends Gradient {
     ];
 
     return '${objectRuntimeType(this, 'LinearGradient')}(${description.join(', ')})';
+  }
+
+  @override
+  LinearGradient withOpacity(double opacity) {
+    return LinearGradient(
+      begin: begin,
+      end: end,
+      colors: <Color>[
+        for (final Color color in colors) color.withOpacity(opacity)
+      ],
+      stops: stops,
+      tileMode: tileMode,
+      transform: transform,
+    );
   }
 }
 
@@ -625,8 +647,7 @@ class LinearGradient extends Gradient {
 class RadialGradient extends Gradient {
   /// Creates a radial gradient.
   ///
-  /// The [colors] argument must not be null. If [stops] is non-null, it must
-  /// have the same length as [colors].
+  /// If [stops] is non-null, it must have the same length as [colors].
   const RadialGradient({
     this.center = Alignment.center,
     this.radius = 0.5,
@@ -707,7 +728,7 @@ class RadialGradient extends Gradient {
       radius * rect.shortestSide,
       colors, _impliedStops(), tileMode,
       _resolveTransform(rect, textDirection),
-      focal == null  ? null : focal!.resolve(textDirection).withinRect(rect),
+      focal?.resolve(textDirection).withinRect(rect),
       focalRadius * rect.shortestSide,
     );
   }
@@ -731,16 +752,16 @@ class RadialGradient extends Gradient {
 
   @override
   Gradient? lerpFrom(Gradient? a, double t) {
-    if (a == null || (a is RadialGradient)) {
-      return RadialGradient.lerp(a as RadialGradient?, this, t);
+    if (a is RadialGradient?) {
+      return RadialGradient.lerp(a, this, t);
     }
     return super.lerpFrom(a, t);
   }
 
   @override
   Gradient? lerpTo(Gradient? b, double t) {
-    if (b == null || (b is RadialGradient)) {
-      return RadialGradient.lerp(this, b as RadialGradient?, t);
+    if (b is RadialGradient?) {
+      return RadialGradient.lerp(this, b, t);
     }
     return super.lerpTo(b, t);
   }
@@ -789,6 +810,7 @@ class RadialGradient extends Gradient {
       tileMode: t < 0.5 ? a.tileMode : b.tileMode, // TODO(ianh): interpolate tile mode
       focal: AlignmentGeometry.lerp(a.focal, b.focal, t),
       focalRadius: math.max(0.0, ui.lerpDouble(a.focalRadius, b.focalRadius, t)!),
+      transform: t < 0.5 ? a.transform : b.transform,
     );
   }
 
@@ -837,6 +859,22 @@ class RadialGradient extends Gradient {
     ];
 
     return '${objectRuntimeType(this, 'RadialGradient')}(${description.join(', ')})';
+  }
+
+  @override
+  RadialGradient withOpacity(double opacity) {
+    return RadialGradient(
+      center: center,
+      radius: radius,
+      colors: <Color>[
+        for (final Color color in colors) color.withOpacity(opacity)
+      ],
+      stops: stops,
+      tileMode: tileMode,
+      focal: focal,
+      focalRadius: focalRadius,
+      transform: transform,
+    );
   }
 }
 
@@ -921,8 +959,7 @@ class RadialGradient extends Gradient {
 class SweepGradient extends Gradient {
   /// Creates a sweep gradient.
   ///
-  /// The [colors] argument must not be null. If [stops] is non-null, it must
-  /// have the same length as [colors].
+  /// If [stops] is non-null, it must have the same length as [colors].
   const SweepGradient({
     this.center = Alignment.center,
     this.startAngle = 0.0,
@@ -999,16 +1036,16 @@ class SweepGradient extends Gradient {
 
   @override
   Gradient? lerpFrom(Gradient? a, double t) {
-    if (a == null || (a is SweepGradient)) {
-      return SweepGradient.lerp(a as SweepGradient?, this, t);
+    if (a is SweepGradient?) {
+      return SweepGradient.lerp(a, this, t);
     }
     return super.lerpFrom(a, t);
   }
 
   @override
   Gradient? lerpTo(Gradient? b, double t) {
-    if (b == null || (b is SweepGradient)) {
-      return SweepGradient.lerp(this, b as SweepGradient?, t);
+    if (b is SweepGradient?) {
+      return SweepGradient.lerp(this, b, t);
     }
     return super.lerpTo(b, t);
   }
@@ -1055,6 +1092,7 @@ class SweepGradient extends Gradient {
       colors: interpolated.colors,
       stops: interpolated.stops,
       tileMode: t < 0.5 ? a.tileMode : b.tileMode, // TODO(ianh): interpolate tile mode
+      transform: t < 0.5 ? a.transform : b.transform,
     );
   }
 
@@ -1100,5 +1138,20 @@ class SweepGradient extends Gradient {
     ];
 
     return '${objectRuntimeType(this, 'SweepGradient')}(${description.join(', ')})';
+  }
+
+  @override
+  SweepGradient withOpacity(double opacity) {
+    return SweepGradient(
+      center: center,
+      startAngle: startAngle,
+      endAngle: endAngle,
+      colors: <Color>[
+        for (final Color color in colors) color.withOpacity(opacity)
+      ],
+      stops: stops,
+      tileMode: tileMode,
+      transform: transform,
+    );
   }
 }

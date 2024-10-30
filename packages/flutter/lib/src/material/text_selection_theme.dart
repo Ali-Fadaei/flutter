@@ -2,6 +2,13 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+/// @docImport 'package:flutter/cupertino.dart';
+///
+/// @docImport 'input_decorator.dart';
+/// @docImport 'selectable_text.dart';
+/// @docImport 'text_field.dart';
+library;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
@@ -140,8 +147,6 @@ class TextSelectionThemeData with Diagnosticable {
 class TextSelectionTheme extends InheritedTheme {
   /// Creates a text selection theme widget that specifies the text
   /// selection properties for all widgets below it in the widget tree.
-  ///
-  /// The data argument must not be null.
   const TextSelectionTheme({
     super.key,
     required this.data,

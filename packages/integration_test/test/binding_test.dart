@@ -130,6 +130,10 @@ Future<void> main() async {
 
       expect(find.byType(RepaintBoundary), findsOneWidget);
     });
+
+    testWidgets('integration test has no label', (WidgetTester tester) async {
+      expect(binding.label, null);
+    });
   });
 
   tearDownAll(() async {
@@ -161,10 +165,8 @@ class FakeVM extends Fake implements vm.VmService {
     return vm.Timestamp(timestamp: lastTimeStamp);
   }
 
-  List<String> recordedStreams = <String>[];
   @override
   Future<vm.Success> setVMTimelineFlags(List<String> recordedStreams) async {
-    recordedStreams = recordedStreams;
     return vm.Success();
   }
 

@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:leak_tracker_flutter_testing/leak_tracker_flutter_testing.dart';
 
 import '../widgets/semantics_tester.dart';
 
@@ -20,6 +21,8 @@ void main() {
   // Regression test for https://github.com/flutter/flutter/issues/103741
   testWidgets('extendBodyBehindAppBar change should not cause the body widget lose state', (WidgetTester tester) async {
     final ScrollController controller = ScrollController();
+    addTearDown(controller.dispose);
+
     Widget buildFrame({required bool extendBodyBehindAppBar}) {
       return MediaQuery(
         data: const MediaQueryData(),
@@ -270,6 +273,7 @@ void main() {
 
   testWidgets('Floating action button shrinks when bottom sheet becomes dominant', (WidgetTester tester) async {
     final DraggableScrollableController draggableController = DraggableScrollableController();
+    addTearDown(draggableController.dispose);
     const double kBottomSheetDominatesPercentage = 0.3;
 
     await tester.pumpWidget(MaterialApp(home: Scaffold(
@@ -309,6 +313,7 @@ void main() {
 
   testWidgets('Scaffold shows scrim when bottom sheet becomes dominant', (WidgetTester tester) async {
     final DraggableScrollableController draggableController = DraggableScrollableController();
+    addTearDown(draggableController.dispose);
     const double kBottomSheetDominatesPercentage = 0.3;
     const double kMinBottomSheetScrimOpacity = 0.1;
     const double kMaxBottomSheetScrimOpacity = 0.6;
@@ -436,8 +441,7 @@ void main() {
 
     await tester.pumpWidget(
       buildFrame(const EdgeInsets.only(bottom: 400)),
-      null,
-      EnginePhase.build,
+      phase: EnginePhase.build,
     );
 
     expect(renderBox.debugNeedsLayout, true);
@@ -448,6 +452,7 @@ void main() {
     const double appBarHeight = 256.0;
 
     final ScrollController scrollOffset = ScrollController();
+    addTearDown(scrollOffset.dispose);
 
     await tester.pumpWidget(
       MaterialApp(
@@ -581,7 +586,7 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
-        theme: ThemeData(platform: TargetPlatform.android),
+        theme: ThemeData(platform: TargetPlatform.android, useMaterial3: false),
         home: Scaffold(
           appBar: AppBar(
             title: const Text('Title'),
@@ -590,7 +595,7 @@ void main() {
             builder: (BuildContext context) {
               return GestureDetector(
                 onTap: () {
-                  Scaffold.of(context).showBottomSheet<void>((BuildContext context) {
+                  Scaffold.of(context).showBottomSheet((BuildContext context) {
                     return Container(
                       key: sheetKey,
                       color: Colors.blue[500],
@@ -746,6 +751,7 @@ void main() {
     // Regression test for https://github.com/flutter/flutter/pull/92039
     await tester.pumpWidget(
       MaterialApp(
+        theme: ThemeData(useMaterial3: false),
         home: MediaQuery(
           data: const MediaQueryData(
             // Representing a navigational notch at the bottom of the screen
@@ -849,7 +855,7 @@ void main() {
     }, variant: const TargetPlatformVariant(<TargetPlatform>{ TargetPlatform.android, TargetPlatform.fuchsia }));
 
     testWidgets('Back arrow uses correct default', (WidgetTester tester) async {
-      await expectBackIcon(tester, kIsWeb ? Icons.arrow_back : Icons.arrow_back_ios);
+      await expectBackIcon(tester, kIsWeb ? Icons.arrow_back : Icons.arrow_back_ios_new_rounded);
     }, variant: const TargetPlatformVariant(<TargetPlatform>{ TargetPlatform.iOS,  TargetPlatform.macOS }));
   });
 
@@ -869,7 +875,7 @@ void main() {
 
       final Icon icon = tester.widget(find.byType(Icon));
       expect(icon.icon, expectedIcon, reason: "didn't find close icon for $type");
-      expect(find.byType(CloseButton), findsOneWidget, reason: "didn't find close button for $type");
+      expect(find.byKey(StandardComponentType.closeButton.key), findsOneWidget, reason: "didn't find close button for $type");
     }
 
     PageRoute<void> materialRouteBuilder() {
@@ -991,9 +997,9 @@ void main() {
       late double mediaQueryBottom;
 
       Widget buildFrame({ required bool extendBody, bool? resizeToAvoidBottomInset, double viewInsetBottom = 0.0 }) {
-        return Directionality(
-          textDirection: TextDirection.ltr,
-          child: MediaQuery(
+        return MaterialApp(
+          theme: ThemeData(useMaterial3: false),
+          home: MediaQuery(
             data: MediaQueryData(
               viewInsets: EdgeInsets.only(bottom: viewInsetBottom),
             ),
@@ -2166,7 +2172,7 @@ void main() {
         );
         late FlutterError error;
         try {
-          key.currentState!.showBottomSheet<void>((BuildContext context) {
+          key.currentState!.showBottomSheet((BuildContext context) {
             final ThemeData themeData = Theme.of(context);
             return Container(
               decoration: BoxDecoration(
@@ -2201,6 +2207,7 @@ void main() {
 
     testWidgets(
       'didUpdate bottomSheet while a previous bottom sheet is still displayed',
+      experimentalLeakTesting: LeakTesting.settings.withIgnoredAll(), // leaking by design because of exception
       (WidgetTester tester) async {
         final GlobalKey<ScaffoldState> key = GlobalKey<ScaffoldState>();
         const Key buttonKey = Key('button');
@@ -2227,7 +2234,7 @@ void main() {
             ),
           ),
         );
-        key.currentState!.showBottomSheet<void>((_) => Container());
+        key.currentState!.showBottomSheet((_) => Container());
         await tester.tap(find.byKey(buttonKey));
         await tester.pump();
         expect(errors, isNotEmpty);
@@ -2259,7 +2266,7 @@ void main() {
         MaterialApp(
           home: Builder(
             builder: (BuildContext context) {
-              Scaffold.of(context).showBottomSheet<void>((BuildContext context) {
+              Scaffold.of(context).showBottomSheet((BuildContext context) {
                 return Container();
               });
               return Container();
@@ -2501,7 +2508,7 @@ void main() {
         'MaterialApp at the top of your application widget tree.\n',
       ),
     );
-    expect(error.toStringDeep(), equalsIgnoringHashCodes(
+    expect(error.toStringDeep(), startsWith(
       'FlutterError\n'
       '   No ScaffoldMessenger widget found.\n'
       '   Builder widgets require a ScaffoldMessenger widget ancestor.\n'
@@ -2509,32 +2516,8 @@ void main() {
       '   ancestor was:\n'
       '     Builder\n'
       '   The ancestors of this widget were:\n'
-      '     KeyedSubtree-[GlobalKey#00000]\n'
-      '     _BodyBuilder\n'
-      '     MediaQuery\n'
-      '     LayoutId-[<_ScaffoldSlot.body>]\n'
-      '     CustomMultiChildLayout\n'
-      '     _ActionsScope\n'
-      '     Actions\n'
-      '     AnimatedBuilder\n'
-      '     DefaultTextStyle\n'
-      '     AnimatedDefaultTextStyle\n'
-      '     _InkFeatures-[GlobalKey#00000 ink renderer]\n'
-      '     NotificationListener<LayoutChangedNotification>\n'
-      '     PhysicalModel\n'
-      '     AnimatedPhysicalModel\n'
-      '     Material\n'
-      '     _ScrollNotificationObserverScope\n'
-      '     NotificationListener<ScrollNotification>\n'
-      '     NotificationListener<ScrollMetricsNotification>\n'
-      '     ScrollNotificationObserver\n'
-      '     _ScaffoldScope\n'
-      '     Scaffold\n'
-      '     Directionality\n'
-      '     MediaQuery\n'
-      '     _MediaQueryFromView\n'
-      '     _ViewScope\n'
-      '     View-[GlobalObjectKey TestFlutterView#e6136]\n'
+    ));
+    expect(error.toStringDeep(), endsWith(
       '     [root]\n'
       '   Typically, the ScaffoldMessenger widget is introduced by the\n'
       '   MaterialApp at the top of your application widget tree.\n',
@@ -2778,6 +2761,693 @@ void main() {
 
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('showBottomSheet removes scrim when draggable sheet is dismissed', (WidgetTester tester) async {
+    final DraggableScrollableController draggableController = DraggableScrollableController();
+    addTearDown(draggableController.dispose);
+    final GlobalKey<ScaffoldState> scaffoldKey = GlobalKey();
+    PersistentBottomSheetController? sheetController;
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        key: scaffoldKey,
+        body: const Center(child: Text('body')),
+      ),
+    ));
+
+    sheetController = scaffoldKey.currentState!.showBottomSheet((_) {
+      return DraggableScrollableSheet(
+        expand: false,
+        controller: draggableController,
+        builder: (BuildContext context, ScrollController scrollController) {
+          return SingleChildScrollView(
+            controller: scrollController,
+            child: const Placeholder(),
+          );
+        },
+      );
+    });
+
+    Finder findModalBarrier() => find.descendant(of: find.byType(Scaffold), matching: find.byType(ModalBarrier));
+
+    await tester.pump();
+    expect(find.byType(BottomSheet), findsOneWidget);
+
+    // The scrim is not present yet.
+    expect(findModalBarrier(), findsNothing);
+
+    // Expand the sheet to 80% of parent height to show the scrim.
+    draggableController.jumpTo(0.8);
+    await tester.pump();
+    expect(findModalBarrier(), findsOneWidget);
+
+    // Dismiss the sheet.
+    sheetController.close();
+    await tester.pumpAndSettle();
+
+    // The scrim should be gone.
+    expect(findModalBarrier(), findsNothing);
+  });
+
+  testWidgets("Closing bottom sheet & removing FAB at the same time doesn't throw assertion", (WidgetTester tester) async {
+      final Key bottomSheetKey = UniqueKey();
+      PersistentBottomSheetController? controller;
+      bool show = true;
+
+      await tester.pumpWidget(StatefulBuilder(
+        builder: (_, StateSetter setState) => MaterialApp(
+          home: Scaffold(
+            body: Center(
+            child: Builder(
+              builder: (BuildContext context) => ElevatedButton(
+                onPressed: () {
+                  if (controller == null) {
+                    controller = showBottomSheet(
+                      context: context,
+                      builder: (_) => Container(
+                        key: bottomSheetKey,
+                        height: 200,
+                      ),
+                    );
+                  } else {
+                    controller!.close();
+                    controller = null;
+                  }
+                },
+                child: const Text('BottomSheet'),
+              )),
+            ),
+            floatingActionButton: show
+              ? FloatingActionButton(onPressed: () => setState(() => show = false))
+              : null,
+          ),
+        ),
+      ));
+
+      // Show bottom sheet.
+      await tester.tap(find.byType(ElevatedButton));
+      await tester.pumpAndSettle(const Duration(seconds: 1));
+
+      // Bottom sheet and FAB are visible.
+      expect(find.byType(FloatingActionButton), findsOneWidget);
+      expect(find.byKey(bottomSheetKey), findsOneWidget);
+
+      // Close bottom sheet while removing FAB.
+      await tester.tap(find.byType(FloatingActionButton));
+      await tester.pump(); // start animation
+      await tester.tap(find.byType(ElevatedButton));
+      // Let the animation finish.
+      await tester.pumpAndSettle(const Duration(seconds: 1));
+
+      // Bottom sheet and FAB are gone.
+      expect(find.byType(FloatingActionButton), findsNothing);
+      expect(find.byKey(bottomSheetKey), findsNothing);
+
+      // No exception is thrown.
+      expect(tester.takeException(), isNull);
+  });
+
+   testWidgets('ScaffoldMessenger showSnackBar default animation', (WidgetTester tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: Builder(
+          builder: (BuildContext context) {
+            return ElevatedButton(
+              onPressed: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('I am a snack bar.'),
+                    showCloseIcon: true,
+                  ),
+                );
+              },
+              child: const Text('Show SnackBar'),
+            );
+          },
+        ),
+      ),
+    ));
+
+    // Tap the button to show the SnackBar.
+    await tester.tap(find.byType(ElevatedButton));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 125)); // Advance the animation by 125ms.
+
+    // The SnackBar is partially visible.
+    expect(tester.getTopLeft(find.text('I am a snack bar.')).dy, closeTo(576.7, 0.1));
+
+    await tester.pump(const Duration(milliseconds: 125)); // Advance the animation by 125ms.
+
+    // The SnackBar is fully visible.
+    expect(tester.getTopLeft(find.text('I am a snack bar.')).dy, closeTo(566, 0.1));
+
+    // Tap the close button to dismiss the SnackBar.
+    await tester.tap(find.byType(IconButton));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 125)); // Advance the animation by 125ms.
+
+    // The SnackBar is partially visible.
+    expect(tester.getTopLeft(find.text('I am a snack bar.')).dy, closeTo(576.7, 0.1));
+
+    await tester.pump(const Duration(milliseconds: 125)); // Advance the animation by 125ms.
+
+    // The SnackBar is dismissed.
+    expect(tester.getTopLeft(find.text('I am a snack bar.')).dy, closeTo(614, 0.1));
+  });
+
+  testWidgets('ScaffoldMessenger showSnackBar animation can be customized', (WidgetTester tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: Builder(
+          builder: (BuildContext context) {
+            return ElevatedButton(
+              onPressed: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('I am a snack bar.'),
+                    showCloseIcon: true,
+                  ),
+                  snackBarAnimationStyle: AnimationStyle(
+                    duration: const Duration(milliseconds: 1200),
+                    reverseDuration: const Duration(milliseconds: 600),
+                  ),
+                );
+              },
+              child: const Text('Show SnackBar'),
+            );
+          },
+        ),
+      ),
+    ));
+
+    // Tap the button to show the SnackBar.
+    await tester.tap(find.byType(ElevatedButton));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300)); // Advance the animation by 300ms.
+
+    // The SnackBar is partially visible.
+    expect(tester.getTopLeft(find.text('I am a snack bar.')).dy, closeTo(602.6, 0.1));
+
+    await tester.pump(const Duration(milliseconds: 300)); // Advance the animation by 300ms.
+
+    // The SnackBar is partially visible.
+    expect(tester.getTopLeft(find.text('I am a snack bar.')).dy, closeTo(576.7, 0.1));
+
+    await tester.pump(const Duration(milliseconds: 600)); // Advance the animation by 600ms.
+
+    // The SnackBar is fully visible.
+    expect(tester.getTopLeft(find.text('I am a snack bar.')).dy, closeTo(566, 0.1));
+
+    // Tap the close button to dismiss the SnackBar.
+    await tester.tap(find.byType(IconButton));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300)); // Advance the animation by 300ns.
+
+    // The SnackBar is partially visible.
+    expect(tester.getTopLeft(find.text('I am a snack bar.')).dy, closeTo(576.7, 0.1));
+
+    await tester.pump(const Duration(milliseconds: 300)); // Advance the animation by 300ms.
+
+    // The SnackBar is dismissed.
+    expect(tester.getTopLeft(find.text('I am a snack bar.')).dy, closeTo(614, 0.1));
+  });
+
+  testWidgets('Updated snackBarAnimationStyle updates snack bar animation', (WidgetTester tester) async {
+    Widget buildSnackBar(AnimationStyle snackBarAnimationStyle) {
+      return MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (BuildContext context) {
+              return ElevatedButton(
+                onPressed: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('I am a snack bar.'),
+                      showCloseIcon: true,
+                    ),
+                    snackBarAnimationStyle: snackBarAnimationStyle,
+                  );
+                },
+                child: const Text('Show SnackBar'),
+              );
+            },
+          ),
+        ),
+      );
+    }
+
+    // Test custom animation style.
+    await tester.pumpWidget(buildSnackBar(AnimationStyle(
+      duration: const Duration(milliseconds: 800),
+      reverseDuration: const Duration(milliseconds: 400),
+    )));
+
+    // Tap the button to show the SnackBar.
+    await tester.tap(find.byType(ElevatedButton));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400)); // Advance the animation by 400ms.
+
+    // The SnackBar is partially visible.
+    expect(tester.getTopLeft(find.text('I am a snack bar.')).dy, closeTo(576.7, 0.1));
+
+    await tester.pump(const Duration(milliseconds: 400)); // Advance the animation by 400ms.
+
+    // The SnackBar is fully visible.
+    expect(tester.getTopLeft(find.text('I am a snack bar.')).dy, closeTo(566, 0.1));
+
+    // Tap the close button to dismiss the SnackBar.
+    await tester.tap(find.byType(IconButton));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400)); // Advance the animation by 400ms.
+
+    // The SnackBar is dismissed.
+    expect(tester.getTopLeft(find.text('I am a snack bar.')).dy, closeTo(614, 0.1));
+
+    // Test no animation style.
+    await tester.pumpWidget(buildSnackBar(AnimationStyle.noAnimation));
+    await tester.pumpAndSettle();
+
+    // Tap the button to show the SnackBar.
+    await tester.tap(find.byType(ElevatedButton));
+    await tester.pump();
+
+    // The SnackBar is fully visible.
+    expect(tester.getTopLeft(find.text('I am a snack bar.')).dy, closeTo(566, 0.1));
+
+    // Tap the close button to dismiss the SnackBar.
+    await tester.tap(find.byType(IconButton));
+    await tester.pump();
+
+    // The SnackBar is dismissed.
+    expect(find.text('I am a snack bar.'), findsNothing);
+  });
+
+  testWidgets('snackBarAnimationStyle with only reverseDuration uses default forward duration',
+    (WidgetTester tester) async {
+      Widget buildSnackBar(AnimationStyle snackBarAnimationStyle) {
+        return MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (BuildContext context) {
+                return ElevatedButton(
+                  onPressed: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('I am a snack bar.'),
+                        showCloseIcon: true,
+                      ),
+                      snackBarAnimationStyle: snackBarAnimationStyle,
+                    );
+                  },
+                  child: const Text('Show SnackBar'),
+                );
+              },
+            ),
+          ),
+        );
+      }
+
+      // Test custom animation style with only reverseDuration.
+      await tester.pumpWidget(buildSnackBar(AnimationStyle(
+        reverseDuration: const Duration(milliseconds: 400),
+      )));
+
+      // Tap the button to show the SnackBar.
+      await tester.tap(find.byType(ElevatedButton));
+      await tester.pump();
+      // Advance the animation by 1/2 of the default forward duration.
+      await tester.pump(const Duration(milliseconds: 125));
+
+      // The SnackBar is partially visible.
+      expect(tester.getTopLeft(find.text('I am a snack bar.')).dy, closeTo(576.7, 0.1));
+
+      // Advance the animation by 1/2 of the default forward duration.
+      await tester.pump(const Duration(milliseconds: 125)); // Advance the animation by 125ms.
+
+      // The SnackBar is fully visible.
+      expect(tester.getTopLeft(find.text('I am a snack bar.')).dy, closeTo(566, 0.1));
+
+      // Tap the close button to dismiss the SnackBar.
+      await tester.tap(find.byType(IconButton));
+      await tester.pump();
+      // Advance the animation by 1/2 of the reverse duration.
+      await tester.pump(const Duration(milliseconds: 200));
+
+      // The SnackBar is partially visible.
+      expect(tester.getTopLeft(find.text('I am a snack bar.')).dy, closeTo(576.7, 0.1));
+
+      // Advance the animation by 1/2 of the reverse duration.
+      await tester.pump(const Duration(milliseconds: 200)); // Advance the animation by 200ms.
+
+      // The SnackBar is dismissed.
+      expect(tester.getTopLeft(find.text('I am a snack bar.')).dy, closeTo(614, 0.1));
+  });
+
+  testWidgets('Scaffold showBottomSheet default animation', (WidgetTester tester) async {
+    final Key sheetKey = UniqueKey();
+
+    // Test default bottom sheet animation.
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: Builder(
+          builder: (BuildContext context) {
+            return GestureDetector(
+              onTap: () {
+                Scaffold.of(context).showBottomSheet(
+                  (BuildContext context) {
+                    return SizedBox.expand(
+                      child: ColoredBox(
+                        key: sheetKey,
+                        color: Theme.of(context).colorScheme.primary,
+                        child: FilledButton(
+                          onPressed: () {
+                            Navigator.pop(context);
+                          },
+                          child: const Text('Close'),
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
+              child: const Text('X'),
+            );
+          },
+        ),
+      ),
+    ));
+
+    // Tap the 'X' to show the bottom sheet.
+    await tester.tap(find.text('X'));
+    await tester.pump();
+    // Advance the animation by 1/2 of the default forward duration.
+    await tester.pump(const Duration(milliseconds: 125));
+
+    // The bottom sheet is partially visible.
+    expect(tester.getTopLeft(find.byKey(sheetKey)).dy, closeTo(134.6, 0.1));
+
+    // Advance the animation by 1/2 of the default forward duration.
+    await tester.pump(const Duration(milliseconds: 125));
+
+    // The bottom sheet is fully visible.
+    expect(tester.getTopLeft(find.byKey(sheetKey)).dy, equals(0.0));
+
+    // Dismiss the bottom sheet.
+    await tester.tap(find.widgetWithText(FilledButton, 'Close'));
+    await tester.pump();
+    // Advance the animation by 1/2 of the default reverse duration.
+    await tester.pump(const Duration(milliseconds: 100));
+
+    // The bottom sheet is partially visible.
+    expect(tester.getTopLeft(find.byKey(sheetKey)).dy, closeTo(134.6, 0.1));
+
+    // Advance the animation by 1/2 of the default reverse duration.
+    await tester.pump(const Duration(milliseconds: 100));
+
+    // The bottom sheet is dismissed.
+    expect(tester.getTopLeft(find.byKey(sheetKey)).dy, equals(600.0));
+  });
+
+  testWidgets('Scaffold showBottomSheet animation can be customized', (WidgetTester tester) async {
+    final Key sheetKey = UniqueKey();
+
+    Widget buildWidget({ AnimationStyle? sheetAnimationStyle }) {
+      return MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (BuildContext context) {
+              return GestureDetector(
+                onTap: () {
+                  Scaffold.of(context).showBottomSheet(
+                    sheetAnimationStyle: sheetAnimationStyle,
+                    (BuildContext context) {
+                      return SizedBox.expand(
+                        child: ColoredBox(
+                          key: sheetKey,
+                          color: Theme.of(context).colorScheme.primary,
+                          child: FilledButton(
+                            onPressed: () {
+                              Navigator.pop(context);
+                            },
+                            child: const Text('Close'),
+                          ),
+                        ),
+                      );
+                    },
+                  );
+                },
+                child: const Text('X'),
+              );
+            },
+          ),
+        ),
+      );
+    }
+
+    // Test custom animation style.
+    await tester.pumpWidget(buildWidget(
+      sheetAnimationStyle: AnimationStyle(
+        duration: const Duration(milliseconds: 800),
+        reverseDuration: const Duration(milliseconds: 400),
+      ),
+    ));
+    await tester.tap(find.text('X'));
+    await tester.pump();
+    // Advance the animation by 1/2 of the custom forward duration.
+    await tester.pump(const Duration(milliseconds: 400));
+
+    // The bottom sheet is partially visible.
+    expect(tester.getTopLeft(find.byKey(sheetKey)).dy, closeTo(134.6, 0.1));
+
+    // Advance the animation by 1/2 of the custom forward duration.
+    await tester.pump(const Duration(milliseconds: 400));
+
+    // The bottom sheet is fully visible.
+    expect(tester.getTopLeft(find.byKey(sheetKey)).dy, equals(0.0));
+
+    // Dismiss the bottom sheet.
+    await tester.tap(find.widgetWithText(FilledButton, 'Close'));
+    await tester.pump();
+    // Advance the animation by 1/2 of the custom reverse duration.
+    await tester.pump(const Duration(milliseconds: 200));
+
+    // The bottom sheet is partially visible.
+    expect(tester.getTopLeft(find.byKey(sheetKey)).dy, closeTo(134.6, 0.1));
+
+    // Advance the animation by 1/2 of the custom reverse duration.
+    await tester.pump(const Duration(milliseconds: 200));
+
+    // The bottom sheet is dismissed.
+    expect(tester.getTopLeft(find.byKey(sheetKey)).dy, equals(600.0));
+
+    // Test no animation style.
+    await tester.pumpWidget(buildWidget(sheetAnimationStyle: AnimationStyle.noAnimation));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('X'));
+    await tester.pump();
+
+    // The bottom sheet is fully visible.
+    expect(tester.getTopLeft(find.byKey(sheetKey)).dy, equals(0.0));
+
+    // Dismiss the bottom sheet.
+    await tester.tap(find.widgetWithText(FilledButton, 'Close'));
+    await tester.pump();
+
+    // The bottom sheet is dismissed.
+    expect(find.byKey(sheetKey), findsNothing);
+  });
+
+  // This is a regression test for https://github.com/flutter/flutter/issues/145585.
+  testWidgets('FAB default entrance and exit animations', (WidgetTester tester) async {
+    bool showFab = false;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StatefulBuilder(
+          builder: (BuildContext context, StateSetter setState) {
+            return Scaffold(
+              body: ElevatedButton(
+                onPressed: () {
+                  setState(() {
+                    showFab = !showFab;
+                  });
+                },
+                child: const Text('Toggle FAB'),
+              ),
+              floatingActionButton: !showFab
+                ? null
+                : FloatingActionButton(
+                    onPressed: () {},
+                    child: const Icon(Icons.add),
+                  ),
+            );
+          },
+        ),
+      ),
+    );
+
+    // FAB is not visible.
+    expect(find.byType(FloatingActionButton), findsNothing);
+
+    // Tap the button to show the FAB.
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Toggle FAB'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100)); // Advance the animation by 100ms.
+    // FAB is partially animated in.
+    expect(tester.getTopLeft(find.byType(FloatingActionButton)).dx, closeTo(743.8, 0.1));
+
+    await tester.pump(const Duration(milliseconds: 100)); // Advance the animation by 100ms.
+    // FAB is fully animated in.
+    expect(tester.getTopLeft(find.byType(FloatingActionButton)).dx, equals(728.0));
+
+    // Tap the button to hide the FAB.
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Toggle FAB'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100)); // Advance the animation by 100ms.
+    // FAB is partially animated out.
+    expect(tester.getTopLeft(find.byType(FloatingActionButton)).dx, closeTo(747.1, 0.1));
+
+    await tester.pump(const Duration(milliseconds: 100)); // Advance the animation by 100ms.
+    // FAB is fully animated out.
+    expect(tester.getTopLeft(find.byType(FloatingActionButton)).dx, equals(756.0));
+
+    await tester.pump(const Duration(milliseconds: 50)); // Advance the animation by 50ms.
+    // FAB is not visible.
+    expect(find.byType(FloatingActionButton), findsNothing);
+  });
+
+  // This is a regression test for https://github.com/flutter/flutter/issues/145585.
+  testWidgets('FAB default entrance and exit animations can be disabled', (WidgetTester tester) async {
+    bool showFab = false;
+    FloatingActionButtonLocation fabLocation = FloatingActionButtonLocation.endFloat;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StatefulBuilder(
+          builder: (BuildContext context, StateSetter setState) {
+            return Scaffold(
+              // Disable FAB animations.
+              floatingActionButtonAnimator: FloatingActionButtonAnimator.noAnimation,
+              floatingActionButtonLocation: fabLocation,
+              body: Column(
+                children: <Widget>[
+                  ElevatedButton(
+                    onPressed: () {
+                      setState(() {
+                        showFab = !showFab;
+                      });
+                    },
+                    child: const Text('Toggle FAB'),
+                  ),
+                  ElevatedButton(
+                    onPressed: () {
+                      setState(() {
+                        fabLocation = FloatingActionButtonLocation.centerFloat;
+                      });
+                    },
+                    child: const Text('Update FAB Location'),
+                  ),
+                ],
+              ),
+              floatingActionButton: !showFab
+                ? null
+                : FloatingActionButton(
+                    onPressed: () {},
+                    child: const Icon(Icons.add),
+                  ),
+            );
+          },
+        ),
+      ),
+    );
+
+    // FAB is not visible.
+    expect(find.byType(FloatingActionButton), findsNothing);
+
+    // Tap the button to show the FAB.
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Toggle FAB'));
+    await tester.pump();
+    // FAB is visible.
+    expect(tester.getTopLeft(find.byType(FloatingActionButton)).dx, equals(728.0));
+
+    // Tap the button to hide the FAB.
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Toggle FAB'));
+    await tester.pump();
+    // FAB is not visible.
+    expect(find.byType(FloatingActionButton), findsNothing);
+
+    // Tap the button to show the FAB.
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Toggle FAB'));
+    await tester.pump();
+    // FAB is visible.
+    expect(tester.getTopLeft(find.byType(FloatingActionButton)).dx, equals(728.0));
+
+    // Tap the update location button.
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Update FAB Location'));
+    await tester.pump();
+
+    // FAB is visible at the new location.
+    expect(tester.getTopLeft(find.byType(FloatingActionButton)).dx, equals(372.0));
+
+    // Tap the button to hide the FAB.
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Toggle FAB'));
+    await tester.pump();
+    // FAB is not visible.
+    expect(find.byType(FloatingActionButton), findsNothing);
+  });
+
+  testWidgets('Scaffold background color defaults to ColorScheme.surface', (WidgetTester tester) async {
+    final ThemeData theme = ThemeData(
+      colorScheme: ThemeData().colorScheme.copyWith(
+        surface: Colors.orange,
+        background: Colors.green,
+      )
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: theme,
+        home: const Scaffold(
+          body: SizedBox.expand(),
+        ),
+      ),
+    );
+
+    final Material scaffoldMaterial = tester.widget<Material>(find.descendant(
+      of: find.byType(Scaffold),
+      matching: find.byType(Material).first,
+    ));
+    expect(scaffoldMaterial.color, theme.colorScheme.surface);
+  });
+
+  testWidgets('Body height remains Scaffold height when keyboard is smaller than bottomNavigationBar and extendBody is true', (WidgetTester tester) async {
+    final Key bodyKey = UniqueKey();
+    Widget buildFrame({double keyboardHeight = 0}) {
+      return MaterialApp(
+        home: Builder(
+          builder: (BuildContext context) {
+            return MediaQuery(
+              data: MediaQuery.of(context).copyWith(
+                viewInsets: EdgeInsets.only(bottom: keyboardHeight),
+              ),
+              child: Scaffold(
+                extendBody: true,
+                body: SizedBox.expand(key: bodyKey),
+                bottomNavigationBar:const SizedBox(height: 100),
+              ),
+            );
+          },
+        ),
+      );
+    }
+    await tester.pumpWidget(buildFrame());
+    expect(tester.getSize(find.byKey(bodyKey)).height, 600);
+
+    await tester.pumpWidget(buildFrame(keyboardHeight: 100));
+    expect(tester.getSize(find.byKey(bodyKey)).height, 600);
+
+    await tester.pumpWidget(buildFrame(keyboardHeight: 200));
+    expect(tester.getSize(find.byKey(bodyKey)).height, 400);
+  });
 }
 
 class _GeometryListener extends StatefulWidget {
@@ -2807,12 +3477,8 @@ class _GeometryListenerState extends State<_GeometryListener> {
       return;
     }
 
-    if (geometryListenable != null) {
-      geometryListenable!.removeListener(onGeometryChanged);
-    }
-
-    geometryListenable = newListenable;
-    geometryListenable!.addListener(onGeometryChanged);
+    geometryListenable?.removeListener(onGeometryChanged);
+    geometryListenable = newListenable..addListener(onGeometryChanged);
     cache = _GeometryCachePainter(geometryListenable!);
   }
 

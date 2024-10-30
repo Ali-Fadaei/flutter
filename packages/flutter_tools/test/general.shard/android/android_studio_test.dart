@@ -131,6 +131,7 @@ void main() {
         fileSystem.directory(studioInApplicationPlistFolder).parent.path,
       )!;
 
+      expect(studio.version, equals(Version(4, 1, null)));
       expect(studio, isNotNull);
       expect(studio.pluginsPath, equals(fileSystem.path.join(
         homeMac,
@@ -173,6 +174,7 @@ void main() {
         fileSystem.directory(studioInApplicationPlistFolder).parent.path,
       )!;
 
+      expect(studio.version, equals(Version(2020, 3, null)));
       expect(studio, isNotNull);
       expect(studio.pluginsPath, equals(fileSystem.path.join(
         homeMac,
@@ -215,6 +217,7 @@ void main() {
         fileSystem.directory(studioInApplicationPlistFolder).parent.path,
       )!;
 
+      expect(studio.version, equals(Version(3, 3, null)));
       expect(studio, isNotNull);
       expect(studio.pluginsPath, equals(fileSystem.path.join(
         homeMac,
@@ -256,11 +259,13 @@ void main() {
         fileSystem.directory(studioInApplicationPlistFolder).parent.path,
       )!;
 
+      expect(studio.version, equals(Version(2022, 3, 1)));
       expect(studio, isNotNull);
       expect(studio.pluginsPath, equals(fileSystem.path.join(
         homeMac,
         'Library',
         'Application Support',
+        'Google',
         'AndroidStudioPreview2022.3',
       )));
       expect(studio.validationMessages, <String>['Java version 123']);
@@ -1122,7 +1127,7 @@ void main() {
       fileSystem = MemoryFileSystem.test(style: FileSystemStyle.windows);
     });
 
-    testUsingContext('choses the install with the latest version', () {
+    testUsingContext('chooses the install with the latest version', () {
       const List<String> versions = <String> [
         '4.0',
         '2022.0',
@@ -1167,7 +1172,7 @@ void main() {
       ProcessManager: () => FakeProcessManager.any(),
     });
 
-    testUsingContext('choses install with lexicographically greatest directory if no installs have known versions', () {
+    testUsingContext('chooses install with lexicographically greatest directory if no installs have known versions', () {
       const List<String> versions = <String> [
         'Apple',
         'Zucchini',
@@ -1190,7 +1195,7 @@ void main() {
       ProcessManager: () => FakeProcessManager.any(),
     });
 
-    testUsingContext('choses install with lexicographically greatest directory if all installs have the same version', () {
+    testUsingContext('chooses install with lexicographically greatest directory if all installs have the same version', () {
       fileSystem.file(r'C:\Users\Dash\AppData\Local\Google\AndroidStudioPreview4.0\.home')
         ..createSync(recursive: true)
         ..writeAsStringSync(r'C:\Program Files\AndroidStudioPreview4.0');
@@ -1287,6 +1292,20 @@ void main() {
       Platform: () => platform,
       ProcessManager: () => FakeProcessManager.any(),
     });
+
+    testUsingContext('handles file system exception when checking for explicitly configured Android Studio install', () {
+      const String androidStudioDir = '/Users/Dash/Desktop/android-studio';
+      config.setValue('android-studio-dir', androidStudioDir);
+
+      expect(() => AndroidStudio.latestValid(),
+        throwsToolExit(message: RegExp(r'[.\s\S]*Could not find[.\s\S]*FileSystemException[.\s\S]*')));
+    }, overrides: <Type, Generator>{
+      Config: () => config,
+      Platform: () => platform,
+      FileSystem: () => _FakeFileSystem(),
+      FileSystemUtils: () => _FakeFsUtils(),
+      ProcessManager: () => FakeProcessManager.any(),
+    });
   });
 }
 
@@ -1297,4 +1316,34 @@ class FakePlistUtils extends Fake implements PlistParser {
   Map<String, Object> parseFile(String plistFilePath) {
     return fileContents[plistFilePath]!;
   }
+}
+
+class _FakeFileSystem extends Fake implements FileSystem {
+  @override
+  Directory directory(dynamic path) {
+    return _NonExistentDirectory();
+  }
+
+  @override
+  Context get path {
+    return MemoryFileSystem.test().path;
+  }
+}
+
+class _NonExistentDirectory extends Fake implements Directory {
+  @override
+  bool existsSync() {
+    throw const FileSystemException('OS Error: Filename, directory name, or volume label syntax is incorrect.');
+  }
+
+  @override
+  String get path => '';
+
+  @override
+  Directory get parent => _NonExistentDirectory();
+}
+
+class _FakeFsUtils extends Fake implements FileSystemUtils {
+  @override
+  String get homeDirPath => '/home/';
 }

@@ -2,6 +2,13 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+/// @docImport 'page_view.dart';
+/// @docImport 'scroll_position.dart';
+/// @docImport 'scroll_view.dart';
+/// @docImport 'scrollable.dart';
+/// @docImport 'sliver.dart';
+library;
+
 import 'package:flutter/rendering.dart';
 
 import 'basic.dart';
@@ -13,7 +20,8 @@ export 'package:flutter/rendering.dart' show
   AxisDirection,
   GrowthDirection;
 
-/// A widget that is bigger on the inside.
+/// A widget through which a portion of larger content can be viewed, typically
+/// in combination with a [Scrollable].
 ///
 /// [Viewport] is the visual workhorse of the scrolling machinery. It displays a
 /// subset of its children according to its own dimensions and the given
@@ -51,8 +59,6 @@ class Viewport extends MultiChildRenderObjectWidget {
   ///
   /// The viewport listens to the [offset], which means you do not need to
   /// rebuild this widget when the [offset] changes.
-  ///
-  /// The [offset] argument must not be null.
   ///
   /// The [cacheExtent] must be specified if the [cacheExtentStyle] is
   /// not [CacheExtentStyle.pixel].
@@ -326,8 +332,6 @@ class ShrinkWrappingViewport extends MultiChildRenderObjectWidget {
   ///
   /// The viewport listens to the [offset], which means you do not need to
   /// rebuild this widget when the [offset] changes.
-  ///
-  /// The [offset] argument must not be null.
   const ShrinkWrappingViewport({
     super.key,
     this.axisDirection = AxisDirection.down,

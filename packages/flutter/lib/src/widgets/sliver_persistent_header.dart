@@ -2,6 +2,12 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+/// @docImport 'package:flutter/material.dart';
+///
+/// @docImport 'nested_scroll_view.dart';
+/// @docImport 'scroll_view.dart';
+library;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart' show TickerProvider;
@@ -119,8 +125,6 @@ abstract class SliverPersistentHeaderDelegate {
 class SliverPersistentHeader extends StatelessWidget {
   /// Creates a sliver that varies its size when it is scrolled to the start of
   /// a viewport.
-  ///
-  /// The [delegate], [pinned], and [floating] arguments must not be null.
   const SliverPersistentHeader({
     super.key,
     required this.delegate,

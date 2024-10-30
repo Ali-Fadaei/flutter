@@ -11,9 +11,8 @@ import 'package:flutter/cupertino.dart' show CupertinoPageRoute;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import '../rendering/mock_canvas.dart';
 
 void main() {
   testWidgets('test page transition (_FadeUpwardsPageTransition)', (WidgetTester tester) async {
@@ -240,7 +239,7 @@ void main() {
     expect(find.text('Page 2'), findsNothing);
   }, variant: TargetPlatformVariant.only(TargetPlatform.android));
 
-  testWidgets('test page transition (_ZoomPageTransition) with rasterization re-rasterizes when view insets change', (WidgetTester tester) async {
+  testWidgets('Material2 - test page transition (_ZoomPageTransition) with rasterization re-rasterizes when view insets change', (WidgetTester tester) async {
     addTearDown(tester.view.reset);
     tester.view.physicalSize = const Size(1000, 1000);
     tester.view.viewInsets = FakeViewPadding.zero;
@@ -252,6 +251,7 @@ void main() {
       RepaintBoundary(
         key: key,
         child: MaterialApp(
+          theme: ThemeData(useMaterial3: false),
           onGenerateRoute: (RouteSettings settings) {
             return MaterialPageRoute<void>(
               builder: (BuildContext context) {
@@ -269,7 +269,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
 
-    await expectLater(find.byKey(key), matchesGoldenFile('zoom_page_transition.small.png'));
+    await expectLater(find.byKey(key), matchesGoldenFile('m2_zoom_page_transition.small.png'));
 
     // Change the view insets.
     tester.view.viewInsets = const FakeViewPadding(bottom: 500);
@@ -277,7 +277,49 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
 
-    await expectLater(find.byKey(key), matchesGoldenFile('zoom_page_transition.big.png'));
+    await expectLater(find.byKey(key), matchesGoldenFile('m2_zoom_page_transition.big.png'));
+  }, variant: TargetPlatformVariant.only(TargetPlatform.android), skip: kIsWeb); // [intended] rasterization is not used on the web.
+
+  testWidgets('Material3 - test page transition (_ZoomPageTransition) with rasterization re-rasterizes when view insets change', (WidgetTester tester) async {
+    addTearDown(tester.view.reset);
+    tester.view.physicalSize = const Size(1000, 1000);
+    tester.view.viewInsets = FakeViewPadding.zero;
+
+    // Intentionally use nested scaffolds to simulate the view insets being
+    // consumed.
+    final Key key = GlobalKey();
+    await tester.pumpWidget(
+      RepaintBoundary(
+        key: key,
+        child: MaterialApp(
+          debugShowCheckedModeBanner: false, // https://github.com/flutter/flutter/issues/143616
+          theme: ThemeData(useMaterial3: true),
+          onGenerateRoute: (RouteSettings settings) {
+            return MaterialPageRoute<void>(
+              builder: (BuildContext context) {
+                return const Scaffold(body: Scaffold(
+                    body: Material(child: SizedBox.shrink())
+                ));
+              },
+            );
+          },
+        ),
+      ),
+    );
+
+    tester.state<NavigatorState>(find.byType(Navigator)).pushNamed('/next');
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    await expectLater(find.byKey(key), matchesGoldenFile('m3_zoom_page_transition.small.png'));
+
+    // Change the view insets.
+    tester.view.viewInsets = const FakeViewPadding(bottom: 500);
+
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    await expectLater(find.byKey(key), matchesGoldenFile('m3_zoom_page_transition.big.png'));
   }, variant: TargetPlatformVariant.only(TargetPlatform.android), skip: kIsWeb); // [intended] rasterization is not used on the web.
 
   testWidgets(
@@ -839,7 +881,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 240));
     expect(
       tester.getTopLeft(find.ancestor(of: find.text('route'), matching: find.byType(Scaffold))).dx,
-      moreOrLessEquals(798, epsilon: 1),
+      moreOrLessEquals(794, epsilon: 1),
     );
 
     // Use the navigator to push a route instead of tapping the 'push' button.
@@ -1025,7 +1067,8 @@ void main() {
     // Title of the first route slides to the left.
     expect(titleInitialTopLeft.dy, equals(titleTransientTopLeft.dy));
     expect(titleInitialTopLeft.dx, greaterThan(titleTransientTopLeft.dx));
-  }, variant: const TargetPlatformVariant(<TargetPlatform>{ TargetPlatform.iOS,  TargetPlatform.macOS }));
+  },
+  variant: const TargetPlatformVariant(<TargetPlatform>{ TargetPlatform.iOS,  TargetPlatform.macOS }));
 
   testWidgets('MaterialPage works', (WidgetTester tester) async {
     final LocalKey pageKey = UniqueKey();
@@ -1189,6 +1232,103 @@ void main() {
     expect(find.text('p1'), findsOneWidget);
     expect(find.text('count: 1'), findsOneWidget);
   });
+
+  testWidgets('MaterialPageRoute can be dismissed with escape keyboard shortcut', (WidgetTester tester) async {
+    // Regression test for https://github.com/flutter/flutter/issues/132138.
+    final GlobalKey scaffoldKey = GlobalKey();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          key: scaffoldKey,
+          body: Center(
+            child: ElevatedButton(
+              onPressed: () {
+                Navigator.push<void>(scaffoldKey.currentContext!, MaterialPageRoute<void>(
+                  builder: (BuildContext context) {
+                    return const Scaffold(
+                      body: Center(child: Text('route')),
+                    );
+                  },
+                  barrierDismissible: true,
+                ));
+              },
+              child: const Text('push'),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('push'));
+    await tester.pumpAndSettle();
+    expect(find.text('route'), findsOneWidget);
+    expect(find.text('push'), findsNothing);
+
+    // Try to dismiss the route with the escape key.
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+
+    expect(find.text('route'), findsNothing);
+  });
+
+  testWidgets('Setting MaterialPageRoute.requestFocus to false does not request focus on the page', (WidgetTester tester) async {
+    late BuildContext savedContext;
+    const String pageTwoText = 'Page Two';
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (BuildContext context) {
+            savedContext = context;
+            return Container();
+          },
+        ),
+      ),
+    );
+    await tester.pump();
+
+    // Check page two is not on the screen.
+    expect(find.text(pageTwoText), findsNothing);
+
+    // Navigate to page two with text.
+    final NavigatorState navigator = Navigator.of(savedContext);
+    navigator.push(
+      MaterialPageRoute<void>(
+        builder: (BuildContext context) {
+          return const Text(pageTwoText);
+        }
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    // The page two is showing and the text widget has focus.
+    Element textOnPageTwo = tester.element(find.text(pageTwoText));
+    FocusScopeNode focusScopeNode = FocusScope.of(textOnPageTwo);
+    expect(focusScopeNode.hasFocus, isTrue);
+
+    // Navigate back to page one.
+    navigator.pop();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    // Navigate to page two again with requestFocus set to false.
+    navigator.push(
+      MaterialPageRoute<void>(
+        requestFocus: false,
+        builder: (BuildContext context) {
+          return const Text(pageTwoText);
+        }
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    // The page two is showing and the text widget is not focused.
+    textOnPageTwo = tester.element(find.text(pageTwoText));
+    focusScopeNode = FocusScope.of(textOnPageTwo);
+    expect(focusScopeNode.hasFocus, isFalse);
+  });
 }
 
 class TransitionDetector extends DefaultTransitionDelegate<void> {
@@ -1307,6 +1447,12 @@ class _TestRestorableWidgetState extends State<TestRestorableWidget> with Restor
         ),
       ],
     );
+  }
+
+  @override
+  void dispose() {
+    counter.dispose();
+    super.dispose();
   }
 }
 

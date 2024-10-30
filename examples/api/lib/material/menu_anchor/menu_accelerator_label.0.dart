@@ -109,7 +109,7 @@ class MenuAcceleratorApp extends StatelessWidget {
             debugDumpApp();
           }),
         },
-        child: const Scaffold(body: MyMenuBar()),
+        child: const Scaffold(body: SafeArea(child: MyMenuBar())),
       ),
     );
   }

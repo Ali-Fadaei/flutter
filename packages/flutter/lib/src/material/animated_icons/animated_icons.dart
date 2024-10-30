@@ -29,8 +29,8 @@ part of material_animated_icons; // ignore: use_string_in_part_of_directives
 class AnimatedIcon extends StatelessWidget {
   /// Creates an AnimatedIcon.
   ///
-  /// The [progress] and [icon] arguments must not be null.
-  /// The [size] and [color] default to the value given by the current [IconTheme].
+  /// The [size] and [color] default to the value given by the current
+  /// [IconTheme].
   const AnimatedIcon({
     super.key,
     required this.icon,
@@ -77,7 +77,7 @@ class AnimatedIcon extends StatelessWidget {
 
   /// Semantic label for the icon.
   ///
-  /// Announced in accessibility modes (e.g TalkBack/VoiceOver).
+  /// Announced by assistive technologies (e.g TalkBack/VoiceOver).
   /// This label does not show in the UI.
   ///
   /// See also:
@@ -196,7 +196,7 @@ class _PathFrames {
   final List<double> opacities;
 
   void paint(ui.Canvas canvas, Color color, _UiPathFactory uiPathFactory, double progress) {
-    final double opacity = _interpolate<double?>(opacities, progress, lerpDouble)!;
+    final double opacity = _interpolate<double?>(opacities, progress, ui.lerpDouble)!;
     final ui.Paint paint = ui.Paint()
       ..style = PaintingStyle.fill
       ..color = color.withOpacity(color.opacity * opacity);
@@ -293,7 +293,7 @@ T _interpolate<T>(List<T> values, double progress, _Interpolator<T> interpolator
   if (values.length == 1) {
     return values[0];
   }
-  final double targetIdx = lerpDouble(0, values.length -1, progress)!;
+  final double targetIdx = ui.lerpDouble(0, values.length -1, progress)!;
   final int lowIdx = targetIdx.floor();
   final int highIdx = targetIdx.ceil();
   final double t = targetIdx - lowIdx;

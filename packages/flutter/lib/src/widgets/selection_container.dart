@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+/// @docImport 'package:flutter/material.dart';
+///
+/// @docImport 'selectable_region.dart';
+library;
+
 import 'package:flutter/rendering.dart';
 
 import 'framework.dart';
@@ -41,8 +46,6 @@ class SelectionContainer extends StatefulWidget {
   ///
   /// If [registrar] is not provided, this selection container gets the
   /// [SelectionRegistrar] from the context instead.
-  ///
-  /// The [delegate] and [child] must not be null.
   const SelectionContainer({
     super.key,
     this.registrar,
@@ -59,8 +62,6 @@ class SelectionContainer extends StatefulWidget {
   ///
   /// ** See code in examples/api/lib/material/selection_container/selection_container_disabled.0.dart **
   /// {@end-tool}
-  ///
-  /// The [child] must not be null.
   const SelectionContainer.disabled({
     super.key,
     required this.child,
@@ -203,6 +204,9 @@ class _SelectionContainerState extends State<SelectionContainer> with Selectable
 
   @override
   Size get size => (context.findRenderObject()! as RenderBox).size;
+
+  @override
+  List<Rect> get boundingBoxes => <Rect>[(context.findRenderObject()! as RenderBox).paintBounds];
 
   @override
   void dispose() {

@@ -101,14 +101,11 @@ class CustomDeviceLogReader extends DeviceLogReader {
   /// [logLines] as done.
   @override
   Future<void> dispose() async {
-    final List<Future<void>> futures = <Future<void>>[];
-
-    for (final StreamSubscription<String> subscription in subscriptions) {
-      futures.add(subscription.cancel());
-    }
-
-    futures.add(logLinesController.close());
-
+    final List<Future<void>> futures = <Future<void>>[
+      for (final StreamSubscription<String> subscription in subscriptions)
+        subscription.cancel(),
+      logLinesController.close(),
+    ];
     await Future.wait(futures);
   }
 
@@ -221,7 +218,7 @@ class CustomDevicePortForwarder extends DevicePortForwarder {
       }
     }
 
-    throw ToolExit('Forwarding port for custom device $_deviceName failed after $tries tries.');
+    throwToolExit('Forwarding port for custom device $_deviceName failed after $tries tries.');
   }
 
   @override
@@ -300,6 +297,8 @@ class CustomDeviceAppSession {
         'trace-allowlist=${debuggingOptions.traceAllowlist}',
       if (debuggingOptions.traceSystrace)
         'trace-systrace=true',
+      if (debuggingOptions.traceToFile != null)
+        'trace-to-file=${debuggingOptions.traceToFile}',
       if (debuggingOptions.endlessTraceBuffer)
         'endless-trace-buffer=true',
       if (debuggingOptions.dumpSkpOnShaderCompilation)
@@ -353,13 +352,12 @@ class CustomDeviceAppSession {
     required DebuggingOptions debuggingOptions,
     Map<String, Object?> platformArgs = const <String, Object>{},
     bool prebuiltApplication = false,
-    bool ipv6 = false,
     String? userIdentifier
   }) async {
     final bool traceStartup = platformArgs['trace-startup'] as bool? ?? false;
     final String? packageName = _appPackage.name;
     if (packageName == null) {
-      throw ToolExit('Could not start app, name for $_appPackage is unknown.');
+      throwToolExit('Could not start app, name for $_appPackage is unknown.');
     }
     final List<String> interpolated = interpolateCommand(
       _device._config.runDebugCommand,
@@ -378,7 +376,7 @@ class CustomDeviceAppSession {
       logReader,
       portForwarder: _device._config.usesPortForwarding ? _device.portForwarder : null,
       logger: _logger,
-      ipv6: ipv6,
+      ipv6: debuggingOptions.ipv6,
     );
 
     // We need to make the discovery listen to the logReader before the logReader
@@ -440,7 +438,7 @@ class CustomDeviceAppSession {
 class CustomDevice extends Device {
   CustomDevice({
     required CustomDeviceConfig config,
-    required Logger logger,
+    required super.logger,
     required ProcessManager processManager,
   }) : _config = config,
        _logger = logger,
@@ -770,7 +768,7 @@ class CustomDevice extends Device {
       if (_config.postBuildCommand != null) {
         final String? packageName = package.name;
         if (packageName == null) {
-          throw ToolExit('Could not start app, name for $package is unknown.');
+          throwToolExit('Could not start app, name for $package is unknown.');
         }
         await _tryPostBuild(
           appName: packageName,
@@ -790,7 +788,6 @@ class CustomDevice extends Device {
       debuggingOptions: debuggingOptions,
       platformArgs: platformArgs,
       prebuiltApplication: prebuiltApplication,
-      ipv6: ipv6,
       userIdentifier: userIdentifier,
     );
   }

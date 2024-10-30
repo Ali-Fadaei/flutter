@@ -5,9 +5,6 @@
 import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import '../rendering/mock_canvas.dart';
-
-
 const Rect canvasRect = Rect.fromLTWH(0, 0, 100, 100);
 const BorderSide borderSide = BorderSide(width: 4, color: Color(0x0f00ff00));
 
@@ -88,7 +85,7 @@ void main() {
     expect(const LinearBorderEdge(size: 0.5, alignment: -0.5).toString(), 'LinearBorderEdge(size: 0.5, alignment: -0.5)');
     expect(LinearBorder.none.toString(), 'LinearBorder.none');
     const BorderSide side = BorderSide(width: 10.0, color: Color(0xff123456));
-    expect(const LinearBorder(side: side).toString(), 'LinearBorder(side: BorderSide(color: Color(0xff123456), width: 10.0))');
+    expect(const LinearBorder(side: side).toString(), 'LinearBorder(side: BorderSide(color: ${const Color(0xff123456)}, width: 10.0))');
     expect(
       const LinearBorder(
         side: side,
@@ -98,7 +95,7 @@ void main() {
         bottom: LinearBorderEdge(size: 0.75, alignment: 0.75),
       ).toString(),
       'LinearBorder('
-        'side: BorderSide(color: Color(0xff123456), width: 10.0), '
+        'side: BorderSide(color: ${const Color(0xff123456)}, width: 10.0), '
         'start: LinearBorderEdge(size: 0.0, alignment: -0.75), '
         'end: LinearBorderEdge(size: 0.25, alignment: -0.5), '
         'top: LinearBorderEdge(size: 0.5, alignment: 0.5), '
